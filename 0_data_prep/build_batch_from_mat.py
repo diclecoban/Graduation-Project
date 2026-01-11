@@ -1,46 +1,66 @@
 """
-Convert the 2017-05-12 Stanford battery .mat dataset into a pickle file.
+Convert the Stanford battery .mat datasets into pickle files.
 
-The resulting pickle matches the structure expected by the feature
-engineering notebooks (same schema as the original `batch1.pkl`).
+Each pickle matches the structure expected by the feature engineering
+notebooks (same schema as the original ``batch1.pkl``).
 """
 
 from __future__ import annotations
 
 import pickle
+import argparse
+import pickle
 from pathlib import Path
+from typing import Dict, Iterable
 
 import h5py
 import numpy as np
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MAT_PATH = (
+DATASET_ROOT = (
     PROJECT_ROOT
     / "data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master"
     / "dataset"
-    / "2017-05-12_batchdata_updated_struct_errorcorrect.mat"
 )
-OUTPUT_PATH = PROJECT_ROOT / "batch1.pkl"
+DATASETS = [
+    {
+        "name": "batch1",
+        "cell_prefix": "b1",
+        "mat_path": DATASET_ROOT / "2017-05-12_batchdata_updated_struct_errorcorrect.mat",
+    },
+    {
+        "name": "batch2",
+        "cell_prefix": "b2",
+        "mat_path": DATASET_ROOT / "2018-02-20_batchdata_updated_struct_errorcorrect.mat",
+    },
+]
 
 
-def main() -> None:
-    if not MAT_PATH.exists():
-        raise SystemExit(f"MAT file not found: {MAT_PATH}")
+def _decode_string(dataset) -> str:
+    """Decode MATLAB char arrays into UTF-8 strings."""
+    return dataset.tobytes()[::2].decode().strip()
 
-    print(f"Loading {MAT_PATH.name} ...")
-    with h5py.File(MAT_PATH, "r") as f:
+
+def _load_dataset(mat_path: Path, cell_prefix: str) -> Dict[str, dict]:
+    """Return the parsed dataset for ``mat_path`` with keys prefixed."""
+    if not mat_path.exists():
+        raise SystemExit(f"MAT file not found: {mat_path}")
+
+    print(f"Loading {mat_path.name} ...")
+    with h5py.File(mat_path, "r") as f:
         batch = f["batch"]
         num_cells = batch["summary"].shape[0]
         bat_dict: dict[str, dict] = {}
 
         for i in range(num_cells):
             if i % 10 == 0:
-                print(f"  Processing cell {i+1}/{num_cells}")
+                print(f"  Processing cell {i + 1}/{num_cells}")
 
-            cell_key = f"b1c{i}"
+            cell_key = f"{cell_prefix}c{i}"
             cycle_life = f[batch["cycle_life"][i, 0]][()]
-            policy = f[batch["policy_readable"][i, 0]][()].tobytes()[::2].decode()
+            policy_dataset = f[batch["policy_readable"][i, 0]][()]
+            policy = _decode_string(policy_dataset)
 
             summary_group = f[batch["summary"][i, 0]]
             summary = {
@@ -76,10 +96,42 @@ def main() -> None:
                 "cycles": cycle_dict,
             }
 
-    print(f"Writing pickle to {OUTPUT_PATH}")
-    with OUTPUT_PATH.open("wb") as fp:
-        pickle.dump(bat_dict, fp)
-    print("Done.")
+    return bat_dict
+
+
+def main() -> None:
+    args = _parse_args()
+    selected = set(args.only) if args.only else None
+    processed = 0
+
+    for dataset in DATASETS:
+        if selected and dataset["name"] not in selected:
+            continue
+        batch_dict = _load_dataset(dataset["mat_path"], dataset["cell_prefix"])
+        output_path = PROJECT_ROOT / f"{dataset['name']}.pkl"
+        print(f"Writing pickle to {output_path}")
+        with output_path.open("wb") as fp:
+            pickle.dump(batch_dict, fp)
+        processed += 1
+
+    if processed == 0:
+        allowed = ", ".join(d["name"] for d in DATASETS)
+        raise SystemExit(f"No datasets processed. Available names: {allowed}")
+
+    print(f"Done. Generated {processed} pickle(s).")
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Convert Stanford battery MAT files into pickle batches."
+    )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        choices=[dataset["name"] for dataset in DATASETS],
+        help="Restrict conversion to the selected dataset name(s). Defaults to all.",
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

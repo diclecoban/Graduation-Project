@@ -1,9 +1,10 @@
 """
 Generate a light-weight feature table with the eight preferred signals.
 
-The script reads ``batch1.pkl`` (produced from the MATLAB batch file),
-derives the requested statistics for n_cycles = 25/50/100, and writes the
-result to ``features_top8_cycles.csv`` at the project root.
+The script reads the available ``batch*.pkl`` files (produced from the
+MATLAB batch sources), derives the requested statistics for
+``n_cycles`` = 25/50/100, and writes the result to
+``features_top8_cycles.csv`` at the project root.
 
 Usage:
     python 1_feature_engineering/build_features_top8.py
@@ -13,14 +14,17 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import Iterable
+from typing import Dict, Iterable
 
 import numpy as np
 import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PKL_PATH = PROJECT_ROOT / "batch1.pkl"
+PKL_PATHS = (
+    PROJECT_ROOT / "batch1.pkl",
+    PROJECT_ROOT / "batch2.pkl",
+)
 OUT_PATH = PROJECT_ROOT / "features_top8_cycles.csv"
 N_CYCLE_WINDOWS: Iterable[int] = (25, 50, 100)
 
@@ -40,12 +44,35 @@ def delta(values: np.ndarray) -> float:
     return float(values[-1] - values[0])
 
 
-def main() -> None:
-    if not PKL_PATH.exists():
-        raise SystemExit(f"Missing source pickle: {PKL_PATH}")
+def load_batches() -> Dict[str, dict]:
+    """Load and combine every batch pickle listed in ``PKL_PATHS``."""
+    combined: Dict[str, dict] = {}
+    missing = []
+    for path in PKL_PATHS:
+        if not path.exists():
+            missing.append(path)
+            continue
+        with path.open("rb") as fp:
+            batch_data: Dict[str, dict] = pickle.load(fp)
+        overlap = combined.keys() & batch_data.keys()
+        if overlap:
+            overlap_str = ", ".join(sorted(overlap))
+            raise ValueError(f"Duplicate cell IDs across pickles: {overlap_str}")
+        combined.update(batch_data)
 
-    with PKL_PATH.open("rb") as fp:
-        bat_dict = pickle.load(fp)
+    if not combined:
+        missing_paths = ", ".join(str(p) for p in PKL_PATHS)
+        raise SystemExit(f"No batch pickles available. Expected: {missing_paths}")
+
+    if missing:
+        missing_str = ", ".join(str(p) for p in missing)
+        print(f"Warning: skipped missing pickles: {missing_str}")
+
+    return combined
+
+
+def main() -> None:
+    bat_dict = load_batches()
 
     rows: list[dict[str, float | int | str]] = []
 

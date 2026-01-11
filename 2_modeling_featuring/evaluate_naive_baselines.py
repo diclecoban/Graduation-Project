@@ -1,0 +1,144 @@
+"""
+Evaluate naive baseline predictors (mean, batch-only, cycle-count-only) on the fixed test split.
+
+Usage:
+    python 2_modeling_featuring/evaluate_naive_baselines.py \
+        --train features_top8_cycles_train.csv \
+        --test features_top8_cycles_test.csv
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import mean_absolute_error, r2_score
+import matplotlib.pyplot as plt
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_TRAIN = PROJECT_ROOT / "features_top8_cycles_train.csv"
+DEFAULT_TEST = PROJECT_ROOT / "features_top8_cycles_test.csv"
+OUT_JSON = PROJECT_ROOT / "results_naive_baselines.json"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Compute naive baseline metrics on the test split.")
+    parser.add_argument("--train", type=Path, default=DEFAULT_TRAIN, help="Training CSV path.")
+    parser.add_argument("--test", type=Path, default=DEFAULT_TEST, help="Test CSV path.")
+    return parser.parse_args()
+
+
+def load_csv(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise SystemExit(f"Missing CSV: {path}")
+    df = pd.read_csv(path)
+    df = df.copy()
+    df["cycle_life"] = pd.to_numeric(df["cycle_life"], errors="coerce")
+    df.dropna(subset=["cycle_life"], inplace=True)
+    return df
+
+
+def smape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
+    diff = np.abs(y_pred - y_true)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        smape_vals = np.where(denom == 0, 0.0, diff / denom)
+    return float(np.mean(smape_vals) * 100.0)
+
+
+def mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    with np.errstate(divide="ignore", invalid="ignore"):
+        vals = np.abs((y_true - y_pred) / y_true)
+    vals = vals[~np.isnan(vals) & ~np.isinf(vals)]
+    return float(np.mean(vals) * 100.0)
+
+
+def evaluate_baselines(train_df: pd.DataFrame, test_df: pd.DataFrame) -> pd.DataFrame:
+    results = []
+    y_test = test_df["cycle_life"].to_numpy()
+
+    # Mean predictor
+    mean_value = float(train_df["cycle_life"].mean())
+    preds_mean = np.full_like(y_test, mean_value)
+    results.append(
+        {
+            "Baseline": "Mean predictor",
+            "MAE": mean_absolute_error(y_test, preds_mean),
+            "R2": r2_score(y_test, preds_mean),
+            "MAPE (%)": mape(y_test, preds_mean),
+            "SMAPE (%)": smape(y_test, preds_mean),
+        }
+    )
+
+    # Batch-only predictor
+    train_batches = train_df.copy()
+    train_batches["batch"] = train_batches["cell_id"].str[:2]
+    batch_means = train_batches.groupby("batch")["cycle_life"].mean().to_dict()
+    preds_batch = test_df["cell_id"].str[:2].map(batch_means).to_numpy()
+    results.append(
+        {
+            "Baseline": "Batch-only predictor",
+            "MAE": mean_absolute_error(y_test, preds_batch),
+            "R2": r2_score(y_test, preds_batch),
+            "MAPE (%)": mape(y_test, preds_batch),
+            "SMAPE (%)": smape(y_test, preds_batch),
+        }
+    )
+
+    # Cycle-count-only predictor
+    cycle_means = train_df.groupby("n_cycles")["cycle_life"].mean().to_dict()
+    preds_cycle = test_df["n_cycles"].map(cycle_means).to_numpy()
+    results.append(
+        {
+            "Baseline": "Cycle-count-only predictor",
+            "MAE": mean_absolute_error(y_test, preds_cycle),
+            "R2": r2_score(y_test, preds_cycle),
+            "MAPE (%)": mape(y_test, preds_cycle),
+            "SMAPE (%)": smape(y_test, preds_cycle),
+        }
+    )
+
+    df_results = pd.DataFrame(results)
+    return df_results
+
+
+def main() -> None:
+    args = parse_args()
+    train_df = load_csv(args.train)
+    test_df = load_csv(args.test)
+
+    df_results = evaluate_baselines(train_df, test_df)
+    print("Naive baseline performance on test split:")
+    print(df_results.to_string(index=False, float_format=lambda x: f"{x:.2f}"))
+
+    OUT_JSON.write_text(df_results.to_json(orient="records", indent=2))
+    print(f"Saved JSON summary to {OUT_JSON}")
+
+    # Plot metrics
+    plots_dir = PROJECT_ROOT / "plots"
+    plots_dir.mkdir(exist_ok=True)
+    metrics = ["MAE", "R2", "MAPE (%)", "SMAPE (%)"]
+    fig, axes = plt.subplots(2, 2, figsize=(8, 6))
+    axes = axes.ravel()
+    labels = df_results["Baseline"].tolist()
+    x = np.arange(len(labels))
+    colors = ["#1b9e77", "#d95f02", "#7570b3"]
+    for ax, metric in zip(axes, metrics):
+        ax.bar(x, df_results[metric], color=colors)
+        ax.set_title(metric)
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, rotation=20, ha="right")
+        ax.grid(alpha=0.3, axis="y")
+    plt.tight_layout()
+    out_plot = plots_dir / "naive_baselines_metrics.png"
+    plt.savefig(out_plot, dpi=200)
+    plt.close()
+    print(f"Saved {out_plot}")
+
+
+if __name__ == "__main__":
+    main()

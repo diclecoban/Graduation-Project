@@ -15,15 +15,18 @@ import argparse
 import json
 import math
 from pathlib import Path
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Iterable, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import ElasticNetCV
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 
@@ -85,6 +88,18 @@ def prepare_df(df: pd.DataFrame, feature_cols: list[str]) -> Tuple[pd.DataFrame,
     return cleaned, cols
 
 
+def symmetric_mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Compute symmetric MAPE (SMAPE) between predictions and targets."""
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
+    diff = np.abs(y_pred - y_true)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        smape = np.where(denom == 0, 0, diff / denom)
+    return float(np.mean(smape) * 100.0)
+
+
 def evaluate_model(
     df: pd.DataFrame,
     feature_cols: list[str],
@@ -110,8 +125,9 @@ def evaluate_model(
         mae = mean_absolute_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
         mape = np.mean(np.abs((y_test - y_pred) / y_test)) * 100
+        smape = symmetric_mape(y_test.values, y_pred)
 
-        metrics[n_cycles] = {"MAE": mae, "R2": r2, "MAPE": mape}
+        metrics[n_cycles] = {"MAE": mae, "R2": r2, "MAPE": mape, "SMAPE": smape}
 
     return metrics
 
@@ -144,6 +160,14 @@ def build_models() -> Dict[str, Dict[str, object]]:
         random_seed=42,
         verbose=False,
     )
+    enet_params = dict(
+        l1_ratio=[0.1, 0.5, 0.9],
+        alphas=np.logspace(-4, 0, 20),
+        cv=5,
+        max_iter=10000,
+        random_state=42,
+        n_jobs=None,
+    )
     return {
         "random_forest": {
             "label": "Random Forest",
@@ -157,14 +181,24 @@ def build_models() -> Dict[str, Dict[str, object]]:
             "label": "CatBoost",
             "builder": lambda: CatBoostRegressor(**cat_params),
         },
+        "elastic_net": {
+            "label": "ElasticNet",
+            "builder": lambda: make_pipeline(
+                StandardScaler(), ElasticNetCV(**enet_params)
+            ),
+        },
     }
 
 
-def plot_mape(
+def plot_metric(
     plots_dir: Path,
     model_key: str,
     model_label: str,
     results: Dict[str, Dict[int, Dict[str, float]]],
+    metric_key: str,
+    ylabel: str,
+    filename_prefix: str,
+    title_suffix: str,
 ) -> None:
     plots_dir.mkdir(exist_ok=True)
     cycles = [25, 50, 100]
@@ -174,20 +208,20 @@ def plot_mape(
         ("with_qd_std", {"label": "Qd_std var", "marker": "o"}),
         ("without_qd_std", {"label": "Qd_std yok", "marker": "s"}),
     ]:
-        mape_values = []
+        metric_values = []
         for n in cycles:
             metric = results.get(feature_key, {}).get(n)
-            mape_values.append(metric["MAPE"] if metric else math.nan)
-        plt.plot(cycles, mape_values, **style)
+            metric_values.append(metric.get(metric_key) if metric else math.nan)
+        plt.plot(cycles, metric_values, **style)
 
-    plt.title(f"{model_label} - MAPE vs n_cycles")
+    plt.title(f"{model_label} - {title_suffix} vs n_cycles")
     plt.xlabel("n_cycles")
-    plt.ylabel("MAPE (%)")
+    plt.ylabel(ylabel)
     plt.grid(True, alpha=0.3)
     plt.xticks(cycles)
     plt.legend()
     plt.tight_layout()
-    out_path = plots_dir / f"mape_{model_key}.png"
+    out_path = plots_dir / f"{filename_prefix}_{model_key}.png"
     plt.savefig(out_path, dpi=200)
     plt.close()
 
@@ -197,17 +231,20 @@ def plot_table(
     model_key: str,
     model_label: str,
     summary: Dict[str, Dict[int, Dict[str, float]]],
+    metrics_to_show: Iterable[str],
 ) -> None:
     rows = []
     for n in (25, 50, 100):
         with_metrics = summary.get("with_qd_std", {}).get(n)
         without_metrics = summary.get("without_qd_std", {}).get(n)
         if with_metrics and without_metrics:
+            with_values = " | ".join(f"{with_metrics[m]:.2f}" for m in metrics_to_show)
+            without_values = " | ".join(f"{without_metrics[m]:.2f}" for m in metrics_to_show)
             rows.append(
                 [
                     str(n),
-                    f"{with_metrics['MAE']:.2f} | {with_metrics['MAPE']:.2f}",
-                    f"{without_metrics['MAE']:.2f} | {without_metrics['MAPE']:.2f}",
+                    with_values,
+                    without_values,
                 ]
             )
 
@@ -216,13 +253,14 @@ def plot_table(
 
     fig, ax = plt.subplots(figsize=(4.8, 2.6))
     ax.axis("off")
-    header = ["Cycles", "Qd_std var (MAE | MAPE)", "Qd_std yok (MAE | MAPE)"]
+    metrics_label = " | ".join(metrics_to_show)
+    header = ["Cycles", f"Qd_std var ({metrics_label})", f"Qd_std yok ({metrics_label})"]
     table_data = [header] + rows
     table = ax.table(cellText=table_data, loc="center", cellLoc="center")
     table.auto_set_font_size(False)
     table.set_fontsize(9)
     table.scale(1, 1.3)
-    ax.set_title(f"{model_label} – MAE / MAPE", pad=12)
+    ax.set_title(f"{model_label} – {metrics_label}", pad=12)
     fig.tight_layout()
     out_path = plots_dir / f"table_{model_key}.png"
     fig.savefig(out_path, dpi=200)
@@ -258,8 +296,33 @@ def main() -> None:
             metrics = evaluate_model(df, feature_list, cfg["builder"])
             summary[model_key][feature_key] = metrics
             print(f"{cfg['label']} - {feature_key}: {metrics}")
-        plot_mape(args.plots_dir, model_key, cfg["label"], summary[model_key])
-        plot_table(args.plots_dir, model_key, cfg["label"], summary[model_key])
+        plot_metric(
+            args.plots_dir,
+            model_key,
+            cfg["label"],
+            summary[model_key],
+            metric_key="MAPE",
+            ylabel="MAPE (%)",
+            filename_prefix="mape",
+            title_suffix="MAPE",
+        )
+        plot_metric(
+            args.plots_dir,
+            model_key,
+            cfg["label"],
+            summary[model_key],
+            metric_key="SMAPE",
+            ylabel="SMAPE (%)",
+            filename_prefix="smape",
+            title_suffix="SMAPE",
+        )
+        plot_table(
+            args.plots_dir,
+            model_key,
+            cfg["label"],
+            summary[model_key],
+            metrics_to_show=("MAE", "MAPE", "SMAPE"),
+        )
 
     dump_summary(args.summary_json, summary)
 
