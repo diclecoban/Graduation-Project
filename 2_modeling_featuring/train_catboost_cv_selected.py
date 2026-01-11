@@ -197,49 +197,62 @@ def render_table(summary: dict, output_path: Path) -> None:
             cv_mae = data["cv_metrics"]["MAE"]
             test_metrics = data["test_metrics"]
             rows.append(
-                [
-                    feature_key,
-                    str(n_cycle),
-                    params["depth"],
-                    params["learning_rate"],
-                    params["iterations"],
-                    f"{cv_mae['mean']:.2f} ± {cv_mae['std']:.2f}",
-                    f"{test_metrics['MAE']:.2f}",
-                    f"{test_metrics['R2']:.2f}",
-                    f"{test_metrics['MAPE']:.2f}",
-                    f"{test_metrics['SMAPE']:.2f}",
-                ]
+                {
+                    "Feature set": feature_key.replace("_", " "),
+                    "n_cycles": str(n_cycle),
+                    "depth": params["depth"],
+                    "learning_rate": params["learning_rate"],
+                    "iterations": params["iterations"],
+                    "CV MAE (mean ± std)": f"{cv_mae['mean']:.2f} ± {cv_mae['std']:.2f}",
+                    "Test MAE": f"{test_metrics['MAE']:.2f}",
+                    "Test R2": f"{test_metrics['R2']:.2f}",
+                    "Test MAPE": f"{test_metrics['MAPE']:.2f}",
+                    "Test SMAPE": f"{test_metrics['SMAPE']:.2f}",
+                }
             )
 
     if not rows:
         print("No rows to plot for CatBoost CV selection table.")
         return
 
-    PLOTS_DIR = output_path.parent
-    PLOTS_DIR.mkdir(exist_ok=True)
-    header = [
-        "Feature set",
-        "n_cycles",
-        "depth",
-        "lr",
-        "iters",
-        "CV MAE (mean ± std)",
-        "Test MAE",
-        "Test R2",
-        "Test MAPE",
-        "Test SMAPE",
-    ]
-    table_data = [header] + rows
-    fig_height = max(2.5, 0.35 * len(rows) + 1.0)
-    fig, ax = plt.subplots(figsize=(10.5, fig_height))
+    df = pd.DataFrame(rows)
+    header_color = "#111d34"
+    row_colors = ["#f2f4f7", "white"]
+    text_color = "#111d34"
+
+    fig_height = max(3.0, 0.4 * len(df) + 1.5)
+    fig, ax = plt.subplots(figsize=(12, fig_height))
     ax.axis("off")
-    table = ax.table(cellText=table_data, loc="center", cellLoc="center")
+    table = ax.table(
+        cellText=df.values,
+        colLabels=df.columns,
+        cellLoc="center",
+        colLoc="center",
+        loc="center",
+    )
     table.auto_set_font_size(False)
-    table.set_fontsize(8)
-    table.scale(1, 1.1)
-    ax.set_title("CatBoost – CV-selected hyperparameters & test metrics", pad=12)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=200)
+    table.set_fontsize(11)
+    table.scale(1.2, 1.35)
+
+    for (row, col), cell in table.get_celld().items():
+        cell.set_edgecolor("#d7d9e1")
+        cell.get_text().set_ha("center")
+        cell.get_text().set_va("center")
+        if row == 0:
+            cell.set_facecolor(header_color)
+            cell.get_text().set_color("white")
+            cell.get_text().set_weight("bold")
+            cell.get_text().set_size(11)
+            cell.set_height(cell.get_height() * 2.0)
+        else:
+            cell.set_facecolor(row_colors[(row - 1) % 2])
+            cell.get_text().set_color(text_color)
+            cell.set_height(cell.get_height() * 1.2)
+
+    ax.set_title("CatBoost CV-selected hyperparameters & test metrics", fontsize=14, pad=20)
+    fig.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
+    output_path.parent.mkdir(exist_ok=True)
+    fig.savefig(output_path, dpi=250, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved {output_path}")
 
