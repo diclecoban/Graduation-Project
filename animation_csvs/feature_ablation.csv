@@ -1,0 +1,82 @@
+model,n_cycles,feature_removed,mae
+Random Forest,25,All features,126.1276336256
+Random Forest,25,IR_delta,126.3324325767
+Random Forest,25,dQd_slope,129.2559521405
+Random Forest,25,Qd_mean,120.8686803289
+Random Forest,25,IR_slope,125.9865135096
+Random Forest,25,Tavg_mean,129.0325503154
+Random Forest,25,IR_mean,128.8742305796
+Random Forest,25,Qd_std,129.8909764079
+Random Forest,25,IR_std,122.1531638315
+Random Forest,50,All features,137.4862275641
+Random Forest,50,IR_delta,135.766042735
+Random Forest,50,dQd_slope,142.4348022996
+Random Forest,50,Qd_mean,109.8409778509
+Random Forest,50,IR_slope,145.4355967643
+Random Forest,50,Tavg_mean,149.1583394522
+Random Forest,50,IR_mean,137.6980544363
+Random Forest,50,Qd_std,124.1276781644
+Random Forest,50,IR_std,136.1996982092
+Random Forest,100,All features,96.7687976283
+Random Forest,100,IR_delta,100.7304955322
+Random Forest,100,dQd_slope,113.6997138278
+Random Forest,100,Qd_mean,79.1485996226
+Random Forest,100,IR_slope,109.3109260878
+Random Forest,100,Tavg_mean,104.684152676
+Random Forest,100,IR_mean,94.5869437923
+Random Forest,100,Qd_std,99.3472738188
+Random Forest,100,IR_std,99.3897665436
+XGBoost,25,All features,138.9054964506
+XGBoost,25,IR_delta,133.2491267278
+XGBoost,25,dQd_slope,124.9725764348
+XGBoost,25,Qd_mean,108.8955805852
+XGBoost,25,IR_slope,138.7147193322
+XGBoost,25,Tavg_mean,135.8422522912
+XGBoost,25,IR_mean,143.5715895433
+XGBoost,25,Qd_std,137.7194519043
+XGBoost,25,IR_std,129.9238844651
+XGBoost,50,All features,141.3502432016
+XGBoost,50,IR_delta,141.2340839093
+XGBoost,50,dQd_slope,137.0609623836
+XGBoost,50,Qd_mean,103.5471590482
+XGBoost,50,IR_slope,136.9664424016
+XGBoost,50,Tavg_mean,139.7402555026
+XGBoost,50,IR_mean,137.0022958609
+XGBoost,50,Qd_std,136.0773526705
+XGBoost,50,IR_std,139.8350102351
+XGBoost,100,All features,98.8742417556
+XGBoost,100,IR_delta,105.2316166804
+XGBoost,100,dQd_slope,111.157822829
+XGBoost,100,Qd_mean,80.9737924429
+XGBoost,100,IR_slope,111.4199383075
+XGBoost,100,Tavg_mean,111.6519329364
+XGBoost,100,IR_mean,100.2527794471
+XGBoost,100,Qd_std,102.1718045748
+XGBoost,100,IR_std,105.9181870681
+CatBoost,25,All features,120.4177405529
+CatBoost,25,IR_delta,119.3048532612
+CatBoost,25,dQd_slope,118.5217936421
+CatBoost,25,Qd_mean,112.6626064002
+CatBoost,25,IR_slope,110.3643159509
+CatBoost,25,Tavg_mean,114.9553851702
+CatBoost,25,IR_mean,117.4393267184
+CatBoost,25,Qd_std,110.4942192407
+CatBoost,25,IR_std,112.3476584655
+CatBoost,50,All features,108.8547248593
+CatBoost,50,IR_delta,107.8109715391
+CatBoost,50,dQd_slope,113.0238159311
+CatBoost,50,Qd_mean,102.9219409891
+CatBoost,50,IR_slope,109.9303410468
+CatBoost,50,Tavg_mean,110.7458159276
+CatBoost,50,IR_mean,109.2863510944
+CatBoost,50,Qd_std,108.2932329958
+CatBoost,50,IR_std,100.3012990566
+CatBoost,100,All features,104.6585545012
+CatBoost,100,IR_delta,99.7956825547
+CatBoost,100,dQd_slope,123.4541289402
+CatBoost,100,Qd_mean,92.9279200286
+CatBoost,100,IR_slope,115.5094403365
+CatBoost,100,Tavg_mean,114.6479653978
+CatBoost,100,IR_mean,92.0121948912
+CatBoost,100,Qd_std,104.7136281987
+CatBoost,100,IR_std,104.4241542658

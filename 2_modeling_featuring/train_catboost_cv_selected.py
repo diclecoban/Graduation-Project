@@ -223,16 +223,18 @@ def render_table(summary: dict, output_path: Path) -> None:
     fig_height = max(3.0, 0.4 * len(df) + 1.5)
     fig, ax = plt.subplots(figsize=(12, fig_height))
     ax.axis("off")
+    col_widths = [1.1, 0.8, 0.6, 0.9, 0.8, 1.5, 0.8, 0.8, 0.8, 0.8]
     table = ax.table(
         cellText=df.values,
         colLabels=df.columns,
         cellLoc="center",
         colLoc="center",
         loc="center",
+        colWidths=[w / sum(col_widths) for w in col_widths],
     )
     table.auto_set_font_size(False)
     table.set_fontsize(11)
-    table.scale(1.2, 1.35)
+    table.scale(1.3, 1.35)
 
     for (row, col), cell in table.get_celld().items():
         cell.set_edgecolor("#d7d9e1")

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +22,10 @@ import pandas as pd
 import seaborn as sns
 from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import ElasticNet
 from sklearn.metrics import mean_absolute_error
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -55,13 +58,13 @@ def load_split(path: Path) -> pd.DataFrame:
 
 def get_model_defs():
     return {
-        "Random Forest": RandomForestRegressor(
+        "Random Forest": lambda: RandomForestRegressor(
             n_estimators=600,
             min_samples_leaf=2,
             random_state=42,
             n_jobs=-1,
         ),
-        "XGBoost": XGBRegressor(
+        "XGBoost": lambda: XGBRegressor(
             n_estimators=800,
             max_depth=6,
             learning_rate=0.03,
@@ -73,13 +76,17 @@ def get_model_defs():
             n_jobs=-1,
             random_state=42,
         ),
-        "CatBoost": CatBoostRegressor(
+        "CatBoost": lambda: CatBoostRegressor(
             depth=6,
             learning_rate=0.05,
             iterations=600,
             loss_function="MAE",
             random_seed=42,
             verbose=False,
+        ),
+        "ElasticNet": lambda: make_pipeline(
+            StandardScaler(),
+            ElasticNet(alpha=0.01, l1_ratio=0.5, random_state=42, max_iter=10000),
         ),
     }
 
@@ -109,10 +116,10 @@ def evaluate_model(
 
 def main():
     trainval, test = prepare_data()
-    models = get_model_defs()
+    model_factories = get_model_defs()
 
     rows = []
-    for model_name, base_model in models.items():
+    for model_name, factory in model_factories.items():
         for window in WINDOWS:
             train_slice = trainval[trainval["n_cycles"] == window].reset_index(drop=True)
             test_slice = test[test["n_cycles"] == window].reset_index(drop=True)
@@ -126,7 +133,7 @@ def main():
                 if not features_to_use:
                     continue
 
-                model = base_model.__class__(**base_model.get_params())
+                model = factory()
                 mae = evaluate_model(model, train_slice, test_slice, features_to_use)
 
                 rows.append(
@@ -146,7 +153,7 @@ def main():
 
     PLOTS_DIR.mkdir(exist_ok=True)
     sns.set_theme(style="whitegrid")
-    models_order = list(models.keys())
+    models_order = list(model_factories.keys())
     fig, axes = plt.subplots(
         1, len(models_order), figsize=(18, 6), constrained_layout=True
     )
@@ -173,7 +180,6 @@ def main():
         ax.set_title(f"{model_name} MAE by feature removal")
         ax.set_xlabel("n_cycles window")
         ax.set_ylabel("")
-    fig.suptitle("Feature ablation (lower MAE is better)", fontsize=16, y=0.98)
     output_path = PLOTS_DIR / "feature_ablation_heatmaps.png"
     fig.savefig(output_path, dpi=220)
     print(f"Saved heatmaps to {output_path}")
