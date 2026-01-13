@@ -6,7 +6,7 @@ Usage:
     python 2_modeling_featuring/make_feature_ablation.py
 
 Outputs:
-    - results_feature_ablation.json
+    - outputs/results/results_feature_ablation.json
     - plots/feature_ablation_heatmaps.png
 """
 
@@ -29,12 +29,15 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
+SPLITS_DIR = DATA_DIR / "splits"
 PLOTS_DIR = PROJECT_ROOT / "plots"
-RESULTS_JSON = PROJECT_ROOT / "results_feature_ablation.json"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+RESULTS_JSON = RESULTS_DIR / "results_feature_ablation.json"
 
-TRAIN_PATH = PROJECT_ROOT / "features_top8_cycles_train.csv"
-VAL_PATH = PROJECT_ROOT / "features_top8_cycles_val.csv"
-TEST_PATH = PROJECT_ROOT / "features_top8_cycles_test.csv"
+TRAIN_PATH = SPLITS_DIR / "features_top8_cycles_train.csv"
+VAL_PATH = SPLITS_DIR / "features_top8_cycles_val.csv"
+TEST_PATH = SPLITS_DIR / "features_top8_cycles_test.csv"
 
 FEATURES = [
     "IR_delta",
@@ -146,9 +149,10 @@ def main():
                 )
 
     if not rows:
-        raise SystemExit("No ablation rows computed – check data splits.")
+        raise SystemExit("No ablation rows computed; check data splits.")
 
     results_df = pd.DataFrame(rows)
+    RESULTS_JSON.parent.mkdir(parents=True, exist_ok=True)
     RESULTS_JSON.write_text(results_df.to_json(orient="records", indent=2))
 
     PLOTS_DIR.mkdir(exist_ok=True)

@@ -26,11 +26,13 @@ from xgboost import XGBRegressor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_TRAIN = PROJECT_ROOT / "features_top8_cycles_train.csv"
-DEFAULT_VAL = PROJECT_ROOT / "features_top8_cycles_val.csv"
-DEFAULT_TEST = PROJECT_ROOT / "features_top8_cycles_test.csv"
+DATA_DIR = PROJECT_ROOT / "data"
+SPLITS_DIR = DATA_DIR / "splits"
+DEFAULT_TRAIN = SPLITS_DIR / "features_top8_cycles_train.csv"
+DEFAULT_VAL = SPLITS_DIR / "features_top8_cycles_val.csv"
+DEFAULT_TEST = SPLITS_DIR / "features_top8_cycles_test.csv"
 PLOTS_DIR = PROJECT_ROOT / "plots"
-RESULTS_DIR = PROJECT_ROOT
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
 
 FEATURE_COLS = [
     "IR_delta",
@@ -213,6 +215,7 @@ def save_summary(summary: Dict[int, dict], model_name: str, alpha: float) -> Non
         }
         for n, stats in summary.items()
     }
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_json = RESULTS_DIR / f"results_conformal_{model_name}.json"
     payload = {"alpha": alpha, "per_window": serializable}
     with out_json.open("w", encoding="utf-8") as fp:

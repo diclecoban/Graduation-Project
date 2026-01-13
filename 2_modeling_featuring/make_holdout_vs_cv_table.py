@@ -11,8 +11,9 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-HOLDOUT_PATH = PROJECT_ROOT / "results_top8_metrics.json"
-CV_PATH = PROJECT_ROOT / "results_top8_cv_metrics.json"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+HOLDOUT_PATH = RESULTS_DIR / "results_top8_metrics.json"
+CV_PATH = RESULTS_DIR / "results_top8_cv_metrics.json"
 OUTPUT = PROJECT_ROOT / "plots" / "table_holdout_vs_cv.png"
 
 MODELS = [
@@ -41,7 +42,7 @@ def format_cv(value_dict: dict | None, metric: str) -> str:
         return "-"
     if std is None or std == 0:
         return f"{mean:.2f}"
-    return f"{mean:.2f} ± {std:.2f}"
+    return f"{mean:.2f} +/- {std:.2f}"
 
 
 def build_dataframe(holdout: dict, cv: dict) -> pd.DataFrame:
@@ -59,13 +60,13 @@ def build_dataframe(holdout: dict, cv: dict) -> pd.DataFrame:
                     "Model": model_label,
                     "n_cycles": cycle,
                     "Hold-out MAE": holdout_metrics.get("MAE") if holdout_metrics else None,
-                    "CV MAE (mean ± std)": format_cv(cv_metrics, "MAE"),
+                    "CV MAE (mean +/- std)": format_cv(cv_metrics, "MAE"),
                     "Hold-out R2": holdout_metrics.get("R2") if holdout_metrics else None,
-                    "CV R2 (mean ± std)": format_cv(cv_metrics, "R2"),
+                    "CV R2 (mean +/- std)": format_cv(cv_metrics, "R2"),
                     "Hold-out MAPE": holdout_metrics.get("MAPE") if holdout_metrics else None,
-                    "CV MAPE (mean ± std)": format_cv(cv_metrics, "MAPE"),
+                    "CV MAPE (mean +/- std)": format_cv(cv_metrics, "MAPE"),
                     "Hold-out SMAPE": holdout_metrics.get("SMAPE") if holdout_metrics else None,
-                    "CV SMAPE (mean ± std)": format_cv(cv_metrics, "SMAPE"),
+                    "CV SMAPE (mean +/- std)": format_cv(cv_metrics, "SMAPE"),
                 }
             )
     return pd.DataFrame(rows)

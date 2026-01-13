@@ -5,9 +5,8 @@
 jupyter
 #
 ###### Requirements with Version Specifiers ######
-h5py==2.8.0
-matplotlib==3.3.4 
-numpy==1.22.0
-pandas==1.2.3
-python==3.7.10 
-scipy==1.6.1
+h5py>=3.10.0
+matplotlib>=3.8,<3.12
+numpy>=1.26,<2.0
+pandas>=2.1,<2.4
+scipy>=1.11,<1.13

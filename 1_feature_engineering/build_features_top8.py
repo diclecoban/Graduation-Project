@@ -21,11 +21,14 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+RAW_DIR = DATA_DIR / "raw"
+INTERMEDIATE_DIR = DATA_DIR / "intermediate"
 PKL_PATHS = (
-    PROJECT_ROOT / "batch1.pkl",
-    PROJECT_ROOT / "batch2.pkl",
+    RAW_DIR / "batch1.pkl",
+    RAW_DIR / "batch2.pkl",
 )
-OUT_PATH = PROJECT_ROOT / "features_top8_cycles.csv"
+OUT_PATH = INTERMEDIATE_DIR / "features_top8_cycles.csv"
 N_CYCLE_WINDOWS: Iterable[int] = (25, 50, 100)
 
 
@@ -121,6 +124,7 @@ def main() -> None:
 
     df = pd.DataFrame(rows)
     df.sort_values(["cell_id", "n_cycles"], inplace=True)
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(OUT_PATH, index=False)
     print(f"Wrote {len(df)} rows to {OUT_PATH}")
 

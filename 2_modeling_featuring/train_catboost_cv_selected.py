@@ -3,9 +3,9 @@ Select CatBoost hyperparameters with grouped CV, then train on train+val and tes
 
 Usage:
     python 2_modeling_featuring/train_catboost_cv_selected.py \
-        --train features_top8_cycles_train.csv \
-        --val features_top8_cycles_val.csv \
-        --test features_top8_cycles_test.csv
+        --train data/splits/features_top8_cycles_train.csv \
+        --val data/splits/features_top8_cycles_val.csv \
+        --test data/splits/features_top8_cycles_test.csv
 """
 
 from __future__ import annotations
@@ -24,11 +24,14 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import GroupKFold
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+SPLITS_DIR = DATA_DIR / "splits"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
 
-DEFAULT_TRAIN = PROJECT_ROOT / "features_top8_cycles_train.csv"
-DEFAULT_VAL = PROJECT_ROOT / "features_top8_cycles_val.csv"
-DEFAULT_TEST = PROJECT_ROOT / "features_top8_cycles_test.csv"
-DEFAULT_JSON = PROJECT_ROOT / "results_catboost_cv_selected.json"
+DEFAULT_TRAIN = SPLITS_DIR / "features_top8_cycles_train.csv"
+DEFAULT_VAL = SPLITS_DIR / "features_top8_cycles_val.csv"
+DEFAULT_TEST = SPLITS_DIR / "features_top8_cycles_test.csv"
+DEFAULT_JSON = RESULTS_DIR / "results_catboost_cv_selected.json"
 DEFAULT_TABLE = PROJECT_ROOT / "plots/table_catboost_cv_selected.png"
 
 CYCLES = (25, 50, 100)
@@ -203,7 +206,7 @@ def render_table(summary: dict, output_path: Path) -> None:
                     "depth": params["depth"],
                     "learning_rate": params["learning_rate"],
                     "iterations": params["iterations"],
-                    "CV MAE (mean ± std)": f"{cv_mae['mean']:.2f} ± {cv_mae['std']:.2f}",
+                    "CV MAE (mean +/- std)": f"{cv_mae['mean']:.2f} +/- {cv_mae['std']:.2f}",
                     "Test MAE": f"{test_metrics['MAE']:.2f}",
                     "Test R2": f"{test_metrics['R2']:.2f}",
                     "Test MAPE": f"{test_metrics['MAPE']:.2f}",
@@ -294,6 +297,7 @@ def main() -> None:
                 f"Test MAE={test_metrics['MAE']:.2f}"
             )
 
+    args.output_json.parent.mkdir(parents=True, exist_ok=True)
     with args.output_json.open("w", encoding="utf-8") as fp:
         json.dump(summary, fp, indent=2)
     print(f"Saved JSON summary to {args.output_json}")

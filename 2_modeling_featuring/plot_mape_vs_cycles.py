@@ -31,9 +31,12 @@ from xgboost import XGBRegressor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DATASET = PROJECT_ROOT / "features_top8_cycles.csv"
+DATA_DIR = PROJECT_ROOT / "data"
+INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+DEFAULT_DATASET = INTERMEDIATE_DIR / "features_top8_cycles.csv"
 PLOTS_DIR = PROJECT_ROOT / "plots"
-SUMMARY_JSON = PROJECT_ROOT / "results_top8_metrics.json"
+SUMMARY_JSON = RESULTS_DIR / "results_top8_metrics.json"
 
 BASE_FEATURES = [
     "IR_delta",
@@ -276,6 +279,7 @@ def dump_summary(path: Path, summary: Dict[str, Dict[str, Dict[int, Dict[str, fl
                 str(n): {metric: float(value) for metric, value in stats.items()}
                 for n, stats in metrics.items()
             }
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fp:
         json.dump(serializable, fp, indent=2)
     print(f"Saved summary to {path}")

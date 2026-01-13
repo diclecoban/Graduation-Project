@@ -6,7 +6,7 @@ the same battery ends up in the same split, avoiding label leakage.
 
 Usage:
     python 2_modeling_featuring/split_train_val_test.py \
-        --source features_top8_cycles.csv \
+        --source data/intermediate/features_top8_cycles.csv \
         --ratios 0.7 0.15 0.15 \
         --seed 42
 """
@@ -21,10 +21,10 @@ import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SOURCE = PROJECT_ROOT / "features_top8_cycles.csv"
-DEFAULT_OUT_PATTERN = (
-    PROJECT_ROOT / "{stem}_{split}.csv"
-)  # stem="features_top8_cycles"
+DATA_DIR = PROJECT_ROOT / "data"
+INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+SPLITS_DIR = DATA_DIR / "splits"
+DEFAULT_SOURCE = INTERMEDIATE_DIR / "features_top8_cycles.csv"
 
 
 def parse_args() -> argparse.Namespace:
@@ -88,10 +88,10 @@ def allocate_counts(num_cells: int, ratios: Tuple[float, float, float]) -> Tuple
 
 
 def write_split(
-    df: pd.DataFrame, cells: set[str], stem: str, split_name: str
+    df: pd.DataFrame, cells: set[str], stem: str, split_name: str, output_dir: Path
 ) -> tuple[Path, int]:
     subset = df[df["cell_id"].isin(cells)].copy()
-    out_path = DEFAULT_OUT_PATTERN.with_name(f"{stem}_{split_name}.csv")
+    out_path = output_dir / f"{stem}_{split_name}.csv"
     subset.to_csv(out_path, index=False)
     return out_path, subset.shape[0]
 
@@ -117,6 +117,7 @@ def main() -> None:
     test_cells = set(cells[train_count + val_count :])
 
     stem = source.stem
+    SPLITS_DIR.mkdir(parents=True, exist_ok=True)
     outputs = [
         ("train", train_cells),
         ("val", val_cells),
@@ -124,7 +125,7 @@ def main() -> None:
     ]
 
     for split_name, split_cells in outputs:
-        path, row_count = write_split(df, split_cells, stem, split_name)
+        path, row_count = write_split(df, split_cells, stem, split_name, SPLITS_DIR)
         print(f"Wrote {len(split_cells)} cells / {row_count} rows to {path}")
 
     print(

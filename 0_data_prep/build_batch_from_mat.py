@@ -18,6 +18,7 @@ import numpy as np
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RAW_DIR = PROJECT_ROOT / "data" / "raw"
 DATASET_ROOT = (
     PROJECT_ROOT
     / "data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master"
@@ -108,7 +109,8 @@ def main() -> None:
         if selected and dataset["name"] not in selected:
             continue
         batch_dict = _load_dataset(dataset["mat_path"], dataset["cell_prefix"])
-        output_path = PROJECT_ROOT / f"{dataset['name']}.pkl"
+        RAW_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = RAW_DIR / f"{dataset['name']}.pkl"
         print(f"Writing pickle to {output_path}")
         with output_path.open("wb") as fp:
             pickle.dump(batch_dict, fp)

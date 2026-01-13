@@ -5,11 +5,14 @@ import h5py
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-FEATURES = PROJECT_ROOT / 'features_top8_cycles.csv'
-MAT_PATH = PROJECT_ROOT / 'data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master/dataset/2017-05-12_batchdata_updated_struct_errorcorrect.mat'
-BATCH1 = PROJECT_ROOT / 'batch1.pkl'
-BATCH2 = PROJECT_ROOT / 'batch2.pkl'
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
+INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+RAW_DIR = DATA_DIR / "raw"
+FEATURES = INTERMEDIATE_DIR / "features_top8_cycles.csv"
+MAT_PATH = PROJECT_ROOT / "data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master" / "dataset" / "2017-05-12_batchdata_updated_struct_errorcorrect.mat"
+BATCH1 = RAW_DIR / "batch1.pkl"
+BATCH2 = RAW_DIR / "batch2.pkl"
 PLOTS_DIR = PROJECT_ROOT / 'plots'
 PLOTS_DIR.mkdir(exist_ok=True)
 

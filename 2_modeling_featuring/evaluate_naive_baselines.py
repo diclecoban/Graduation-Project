@@ -3,8 +3,8 @@ Evaluate naive baseline predictors (mean, batch-only, cycle-count-only) on the f
 
 Usage:
     python 2_modeling_featuring/evaluate_naive_baselines.py \
-        --train features_top8_cycles_train.csv \
-        --test features_top8_cycles_test.csv
+        --train data/splits/features_top8_cycles_train.csv \
+        --test data/splits/features_top8_cycles_test.csv
 """
 
 from __future__ import annotations
@@ -20,9 +20,12 @@ import matplotlib.pyplot as plt
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_TRAIN = PROJECT_ROOT / "features_top8_cycles_train.csv"
-DEFAULT_TEST = PROJECT_ROOT / "features_top8_cycles_test.csv"
-OUT_JSON = PROJECT_ROOT / "results_naive_baselines.json"
+DATA_DIR = PROJECT_ROOT / "data"
+SPLITS_DIR = DATA_DIR / "splits"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+DEFAULT_TRAIN = SPLITS_DIR / "features_top8_cycles_train.csv"
+DEFAULT_TEST = SPLITS_DIR / "features_top8_cycles_test.csv"
+OUT_JSON = RESULTS_DIR / "results_naive_baselines.json"
 
 
 def parse_args() -> argparse.Namespace:
@@ -115,6 +118,7 @@ def main() -> None:
     print("Naive baseline performance on test split:")
     print(df_results.to_string(index=False, float_format=lambda x: f"{x:.2f}"))
 
+    OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(df_results.to_json(orient="records", indent=2))
     print(f"Saved JSON summary to {OUT_JSON}")
 

@@ -2,7 +2,7 @@
 CatBoost baseline model on the eight-feature dataset.
 
 Steps:
-  * load ``features_top8_cycles.csv``
+  * load ``data/intermediate/features_top8_cycles.csv``
   * filter the feature list and drop rows with NaNs
   * train CatBoostRegressor for n_cycles = 25/50/100
   * print MAE/R2 metrics plus per-feature importances
@@ -24,7 +24,7 @@ from sklearn.model_selection import train_test_split
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_PATH = PROJECT_ROOT / "features_top8_cycles.csv"
+DATA_PATH = PROJECT_ROOT / "data" / "intermediate" / "features_top8_cycles.csv"
 
 CANDIDATE_FEATURES = [
     "IR_delta",

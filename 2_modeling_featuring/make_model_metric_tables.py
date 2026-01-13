@@ -16,8 +16,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RESULTS_PATH = PROJECT_ROOT / "results_top8_metrics.json"
-NAIVE_PATH = PROJECT_ROOT / "results_naive_baselines.json"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+RESULTS_PATH = RESULTS_DIR / "results_top8_metrics.json"
+NAIVE_PATH = RESULTS_DIR / "results_naive_baselines.json"
 
 WINDOWS = [25, 50, 100]
 METRICS = ["MAE", "R2", "MAPE", "SMAPE"]

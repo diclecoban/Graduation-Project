@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RESULTS_PATH = PROJECT_ROOT / "results_top8_metrics.json"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+RESULTS_PATH = RESULTS_DIR / "results_top8_metrics.json"
 PLOTS_DIR = PROJECT_ROOT / "plots"
 
 MODELS = [
@@ -68,7 +69,7 @@ def render_table(rows: list[list[str]], metrics: list[str], suffix: str) -> None
     table.set_fontsize(8)
     table.scale(1, 1.1)
     metrics_label = " / ".join(metrics)
-    ax.set_title(f"Model vs n_cycles – {metrics_label}", pad=12)
+    ax.set_title(f"Model vs n_cycles - {metrics_label}", pad=12)
     fig.tight_layout()
     output_path = PLOTS_DIR / f"table_results_{suffix}.png"
     fig.savefig(output_path, dpi=200)

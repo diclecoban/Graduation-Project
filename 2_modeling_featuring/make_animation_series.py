@@ -19,10 +19,13 @@ from catboost import CatBoostRegressor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CV_RESULTS = PROJECT_ROOT / "results_top8_cv_metrics.json"
-TRAIN_CSV = PROJECT_ROOT / "features_top8_cycles_train.csv"
-VAL_CSV = PROJECT_ROOT / "features_top8_cycles_val.csv"
-TEST_CSV = PROJECT_ROOT / "features_top8_cycles_test.csv"
+DATA_DIR = PROJECT_ROOT / "data"
+SPLITS_DIR = DATA_DIR / "splits"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+CV_RESULTS = RESULTS_DIR / "results_top8_cv_metrics.json"
+TRAIN_CSV = SPLITS_DIR / "features_top8_cycles_train.csv"
+VAL_CSV = SPLITS_DIR / "features_top8_cycles_val.csv"
+TEST_CSV = SPLITS_DIR / "features_top8_cycles_test.csv"
 DATASET_ROOT = (
     PROJECT_ROOT
     / "data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master"

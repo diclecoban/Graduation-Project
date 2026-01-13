@@ -7,7 +7,7 @@ the n_cycles windows of a single battery.
 
 Usage:
     python 2_modeling_featuring/cross_validate_models.py \
-        --dataset features_top8_cycles.csv \
+        --dataset data/intermediate/features_top8_cycles.csv \
         --n-splits 5
 """
 
@@ -30,8 +30,11 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DATASET = PROJECT_ROOT / "features_top8_cycles.csv"
-DEFAULT_OUTPUT = PROJECT_ROOT / "results_top8_cv_metrics.json"
+DATA_DIR = PROJECT_ROOT / "data"
+INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
+DEFAULT_DATASET = INTERMEDIATE_DIR / "features_top8_cycles.csv"
+DEFAULT_OUTPUT = RESULTS_DIR / "results_top8_cv_metrics.json"
 
 BASE_FEATURES = [
     "IR_delta",
@@ -213,6 +216,7 @@ def main() -> None:
             summary[model_key][feature_key] = metrics
             print(f"{cfg['label']} ({feature_key}) -> {metrics}")
 
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as fp:
         json.dump(summary, fp, indent=2)
     print(f"Saved CV metrics to {args.output}")

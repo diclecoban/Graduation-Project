@@ -21,7 +21,9 @@ from xgboost import XGBRegressor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DATASET = PROJECT_ROOT / "features_top8_cycles.csv"
+DATA_DIR = PROJECT_ROOT / "data"
+INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+DEFAULT_DATASET = INTERMEDIATE_DIR / "features_top8_cycles.csv"
 PLOTS_DIR = PROJECT_ROOT / "plots"
 
 FEATURES = [
