@@ -6,3 +6,5 @@ data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master/
 
 # Generated visualization assets
 plots/
+venv/
+.DS_Store

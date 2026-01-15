@@ -40,7 +40,7 @@ CANDIDATE_FEATURES = [
 
 def load_dataset() -> tuple[pd.DataFrame, list[str]]:
     if not DATA_PATH.exists():
-        print(f"Veri dosyası bulunamadı: {DATA_PATH}", file=sys.stderr)
+        print(f"Can't find dataset: {DATA_PATH}", file=sys.stderr)
         sys.exit(1)
 
     df = pd.read_csv(DATA_PATH)
