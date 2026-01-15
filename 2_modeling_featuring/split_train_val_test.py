@@ -28,11 +28,11 @@ DEFAULT_SOURCE = INTERMEDIATE_DIR / "features_top8_cycles.csv"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser( # Reading the argument
         description="Create deterministic train/val/test splits from the feature table."
     )
     parser.add_argument(
-        "--source",
+        "--source", 
         type=Path,
         default=DEFAULT_SOURCE,
         help=f"Input CSV to split (default: {DEFAULT_SOURCE})",
@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
         type=float,
         nargs=3,
         metavar=("TRAIN", "VAL", "TEST"),
-        default=(0.7, 0.15, 0.15),
+        default=(0.7, 0.15, 0.15), # I used to make train and test (0.8, 0.2)
         help="Split ratios that sum to 1.0 (default: 0.7 0.15 0.15)",
     )
     parser.add_argument(
@@ -51,29 +51,36 @@ def parse_args() -> argparse.Namespace:
         default=42,
         help="Seed for the RNG used to shuffle cell IDs.",
     )
-    return parser.parse_args()
+    return parser.parse_args() #read the argument
 
 
-def normalize_ratios(ratios: Iterable[float]) -> Tuple[float, float, float]:
-    ratios = np.asarray(list(ratios), dtype=float)
+def normalize_ratios(ratios: Iterable[float]) -> Tuple[float, float, float]: # to make sure that the sum of the ratios is 1.0
+    ratios = np.asarray(list(ratios), dtype=float) # ratios -> np dizisi
     if (ratios <= 0).any():
         raise ValueError("All ratios must be positive.")
     total = ratios.sum()
-    if not np.isclose(total, 1.0):
+    if not np.isclose(total, 1.0): # if sum isnt 1.0 it rearrange them by dividing the ratios of the total.
         ratios = ratios / total
     return tuple(float(r) for r in ratios)
 
 
 def allocate_counts(num_cells: int, ratios: Tuple[float, float, float]) -> Tuple[int, int, int]:
     raw_counts = np.array([ratio * num_cells for ratio in ratios], dtype=float)
-    counts = np.floor(raw_counts).astype(int)
+    counts = np.floor(raw_counts).astype(int) # floor = aşağı yuvarlama fonk.
     remainder = num_cells - counts.sum()
-    if remainder > 0:
-        ordering = np.argsort(raw_counts - counts)[::-1]
+    if remainder > 0: # açıkta kalan piller varsa;
+        ordering = np.argsort(raw_counts - counts)[::-1] 
         for idx in ordering[:remainder]:
             counts[idx] += 1
 
-    # Ensure no split is completely empty if possible.
+# Note to myself if I forget the logic of allocate_counts: 
+# Yukarıdaki mantık şu: aşağı yuvarlayarak birkaç tane açıkta kalan pil oldu.
+# Benim bu açıkta kalanları üç gruptan birine vermem lazım
+# Yuvarlarken en çok kayıp verdiğim gruba koyarak durumları eşitlemeye çalıştım.
+# Ör: 2.9 -> 2 ve 3.5 -> 3 yapmışsam; raw counts - counts = 2.9 - 2 = 0.9 ve 3.5 - 3 = 0.5 buldum.
+# Kalan pilleri sonucu fazla olana yani 0.9 olana verdim.
+
+    # Make sure that no split is empty if possible. If anyone is 0 I give 1 battery from most battery split.
     for idx in range(len(counts)):
         if counts[idx] == 0:
             donor = int(np.argmax(counts))
@@ -82,7 +89,7 @@ def allocate_counts(num_cells: int, ratios: Tuple[float, float, float]) -> Tuple
             counts[idx] += 1
             counts[donor] -= 1
 
-    if counts.sum() != num_cells:
+    if counts.sum() != num_cells: # Last control; to make no mistake
         raise RuntimeError("Failed to allocate cell counts across splits.")
     return tuple(int(c) for c in counts)
 
@@ -90,9 +97,9 @@ def allocate_counts(num_cells: int, ratios: Tuple[float, float, float]) -> Tuple
 def write_split(
     df: pd.DataFrame, cells: set[str], stem: str, split_name: str, output_dir: Path
 ) -> tuple[Path, int]:
-    subset = df[df["cell_id"].isin(cells)].copy()
+    subset = df[df["cell_id"].isin(cells)].copy() # copy the cell_id part
     out_path = output_dir / f"{stem}_{split_name}.csv"
-    subset.to_csv(out_path, index=False)
+    subset.to_csv(out_path, index=False) # bunu yeni öğrendim index = false yaparsam başa gereksiz numara eklemiyor.
     return out_path, subset.shape[0]
 
 
@@ -114,7 +121,9 @@ def main() -> None:
     train_count, val_count, test_count = allocate_counts(len(cells), ratios)
     train_cells = set(cells[:train_count])
     val_cells = set(cells[train_count : train_count + val_count])
-    test_cells = set(cells[train_count + val_count :])
+    test_cells = set(cells[train_count + val_count : train_count + val_count + test_count])
+    # I don't have to write test_count variable. Kafam karışmasın diye yazdım. 
+    # Temiz bir kod oluşturmak için silinebilir.
 
     stem = source.stem
     SPLITS_DIR.mkdir(parents=True, exist_ok=True)
