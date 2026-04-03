@@ -1,7 +1,7 @@
 """
-Generate conformal prediction intervals for each model using train/val/test splits.
+Generate conformal prediction intervals for each model using train/calibration/test splits.
 
-Train on the train CSV, calibrate residual quantiles on the validation CSV, and
+Train on the train CSV, calibrate residual quantiles on the calibration CSV, and
 evaluate coverage on the fixed test CSV. Produces per-model PNG plots and JSON
 summaries capturing quantiles, coverage, and accuracy metrics for each cycle window.
 """
@@ -17,9 +17,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from catboost import CatBoostRegressor
+from metrics_utils import bootstrap_metric_ci, compute_metrics
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import ElasticNetCV
-from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
@@ -29,7 +29,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 SPLITS_DIR = DATA_DIR / "splits"
 DEFAULT_TRAIN = SPLITS_DIR / "features_top8_cycles_train.csv"
-DEFAULT_VAL = SPLITS_DIR / "features_top8_cycles_val.csv"
+DEFAULT_CALIBRATION = SPLITS_DIR / "features_top8_cycles_calibration.csv"
 DEFAULT_TEST = SPLITS_DIR / "features_top8_cycles_test.csv"
 PLOTS_DIR = PROJECT_ROOT / "plots"
 RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
@@ -51,7 +51,12 @@ MODELS = ("random_forest", "xgboost", "catboost", "elastic_net")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create conformal prediction plots for each model.")
     parser.add_argument("--train", type=Path, default=DEFAULT_TRAIN, help="Train CSV path.")
-    parser.add_argument("--val", type=Path, default=DEFAULT_VAL, help="Validation CSV path.")
+    parser.add_argument(
+        "--calibration",
+        type=Path,
+        default=DEFAULT_CALIBRATION,
+        help="Calibration CSV path.",
+    )
     parser.add_argument("--test", type=Path, default=DEFAULT_TEST, help="Test CSV path.")
     parser.add_argument("--alpha", type=float, default=0.1, help="Miscoverage rate (default 0.1 => 90% interval).")
     return parser.parse_args()
@@ -122,7 +127,7 @@ def conformal_quantile(residuals: np.ndarray, alpha: float) -> float:
 
 def run_conformal(
     train_df: pd.DataFrame,
-    val_df: pd.DataFrame,
+    calibration_df: pd.DataFrame,
     test_df: pd.DataFrame,
     model_name: str,
     alpha: float,
@@ -130,16 +135,16 @@ def run_conformal(
     summary: Dict[int, dict] = {}
     for n_cycles in CYCLES:
         train_subset = train_df[train_df["n_cycles"] == n_cycles]
-        val_subset = val_df[val_df["n_cycles"] == n_cycles]
+        calibration_subset = calibration_df[calibration_df["n_cycles"] == n_cycles]
         test_subset = test_df[test_df["n_cycles"] == n_cycles]
-        if train_subset.empty or val_subset.empty or test_subset.empty:
+        if train_subset.empty or calibration_subset.empty or test_subset.empty:
             continue
 
         model = build_model(model_name)
         model.fit(train_subset[FEATURE_COLS], train_subset["cycle_life"])
 
-        cal_pred = model.predict(val_subset[FEATURE_COLS])
-        cal_res = np.abs(cal_pred - val_subset["cycle_life"].to_numpy())
+        cal_pred = model.predict(calibration_subset[FEATURE_COLS])
+        cal_res = np.abs(cal_pred - calibration_subset["cycle_life"].to_numpy())
         q = conformal_quantile(cal_res, alpha)
 
         test_pred = model.predict(test_subset[FEATURE_COLS])
@@ -150,8 +155,8 @@ def run_conformal(
         summary[n_cycles] = {
             "quantile": q,
             "coverage": float(np.mean((actual >= lower) & (actual <= upper))),
-            "mae": float(mean_absolute_error(actual, test_pred)),
-            "r2": float(r2_score(actual, test_pred)),
+            "metrics": compute_metrics(actual, test_pred),
+            "bootstrap_95_ci": bootstrap_metric_ci(actual, test_pred),
             "num_test": int(len(actual)),
             "actual": actual.tolist(),
             "pred": test_pred.tolist(),
@@ -209,8 +214,10 @@ def save_summary(summary: Dict[int, dict], model_name: str, alpha: float) -> Non
         str(n): {
             "quantile": stats["quantile"],
             "coverage": stats["coverage"],
-            "mae": stats["mae"],
-            "r2": stats["r2"],
+            "MAE": stats["metrics"]["MAE"],
+            "SMAPE": stats["metrics"]["SMAPE"],
+            "R2": stats["metrics"]["R2"],
+            "bootstrap_95_ci": stats["bootstrap_95_ci"],
             "num_test": stats["num_test"],
         }
         for n, stats in summary.items()
@@ -226,11 +233,13 @@ def save_summary(summary: Dict[int, dict], model_name: str, alpha: float) -> Non
 def main() -> None:
     args = parse_args()
     train_df = load_split(args.train)
-    val_df = load_split(args.val)
+    calibration_df = load_split(args.calibration)
     test_df = load_split(args.test)
 
     for model_name in MODELS:
-        summary = run_conformal(train_df, val_df, test_df, model_name, args.alpha)
+        summary = run_conformal(
+            train_df, calibration_df, test_df, model_name, args.alpha
+        )
         plot_results(summary, model_name)
         save_summary(summary, model_name, args.alpha)
 

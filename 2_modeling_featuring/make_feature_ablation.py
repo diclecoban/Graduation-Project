@@ -36,7 +36,7 @@ RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
 RESULTS_JSON = RESULTS_DIR / "results_feature_ablation.json"
 
 TRAIN_PATH = SPLITS_DIR / "features_top8_cycles_train.csv"
-VAL_PATH = SPLITS_DIR / "features_top8_cycles_val.csv"
+CALIBRATION_PATH = SPLITS_DIR / "features_top8_cycles_calibration.csv"
 TEST_PATH = SPLITS_DIR / "features_top8_cycles_test.csv"
 
 FEATURES = [
@@ -96,12 +96,14 @@ def get_model_defs():
 
 def prepare_data():
     train = load_split(TRAIN_PATH)
-    val = load_split(VAL_PATH)
+    calibration = load_split(CALIBRATION_PATH)
     test = load_split(TEST_PATH)
-    trainval = pd.concat([train, val], ignore_index=True)
-    trainval = trainval.dropna(subset=[TARGET])
+    train = train.dropna(subset=[TARGET])
+    calibration = calibration.dropna(subset=[TARGET])
     test = test.dropna(subset=[TARGET])
-    return trainval, test
+    if calibration.empty:
+        print("Calibration split mevcut ama bu analizde egitime dahil edilmiyor.")
+    return train, test
 
 
 def evaluate_model(
@@ -118,13 +120,13 @@ def evaluate_model(
 
 
 def main():
-    trainval, test = prepare_data()
+    train_only, test = prepare_data()
     model_factories = get_model_defs()
 
     rows = []
     for model_name, factory in model_factories.items():
         for window in WINDOWS:
-            train_slice = trainval[trainval["n_cycles"] == window].reset_index(drop=True)
+            train_slice = train_only[train_only["n_cycles"] == window].reset_index(drop=True)
             test_slice = test[test["n_cycles"] == window].reset_index(drop=True)
 
             if train_slice.empty or test_slice.empty:

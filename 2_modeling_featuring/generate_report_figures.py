@@ -29,7 +29,7 @@ DATASET_ROOT = (
 )
 MAT_PATH = DATASET_ROOT / "2017-05-12_batchdata_updated_struct_errorcorrect.mat"
 TRAIN_CSV = SPLITS_DIR / "features_top8_cycles_train.csv"
-VAL_CSV = SPLITS_DIR / "features_top8_cycles_val.csv"
+CALIBRATION_CSV = SPLITS_DIR / "features_top8_cycles_calibration.csv"
 TEST_CSV = SPLITS_DIR / "features_top8_cycles_test.csv"
 RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
 CV_RESULTS = RESULTS_DIR / "results_top8_cv_metrics.json"
@@ -66,7 +66,7 @@ def conformal_quantile(residuals: np.ndarray, alpha: float = 0.1) -> float:
 
 def make_conformal_plot() -> None:
     train_df = load_split(TRAIN_CSV)
-    val_df = load_split(VAL_CSV)
+    calibration_df = load_split(CALIBRATION_CSV)
     test_df = load_split(TEST_CSV)
     alpha = 0.1
 
@@ -76,9 +76,9 @@ def make_conformal_plot() -> None:
 
     for n_cycles in CYCLES:
         train_subset = train_df[train_df["n_cycles"] == n_cycles]
-        val_subset = val_df[val_df["n_cycles"] == n_cycles]
+        calibration_subset = calibration_df[calibration_df["n_cycles"] == n_cycles]
         test_subset = test_df[test_df["n_cycles"] == n_cycles]
-        if train_subset.empty or val_subset.empty or test_subset.empty:
+        if train_subset.empty or calibration_subset.empty or test_subset.empty:
             continue
 
         model = CatBoostRegressor(
@@ -91,8 +91,10 @@ def make_conformal_plot() -> None:
         )
         model.fit(train_subset[FEATURES], train_subset["cycle_life"])
 
-        cal_pred = model.predict(val_subset[FEATURES])
-        q = conformal_quantile(np.abs(cal_pred - val_subset["cycle_life"].to_numpy()), alpha)
+        cal_pred = model.predict(calibration_subset[FEATURES])
+        q = conformal_quantile(
+            np.abs(cal_pred - calibration_subset["cycle_life"].to_numpy()), alpha
+        )
 
         test_pred = model.predict(test_subset[FEATURES])
         lower = test_pred - q

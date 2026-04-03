@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from metrics_utils import bootstrap_metric_ci, compute_metrics
 from sklearn.metrics import mean_absolute_error, r2_score
 import matplotlib.pyplot as plt
 
@@ -67,13 +68,19 @@ def evaluate_baselines(train_df: pd.DataFrame, test_df: pd.DataFrame) -> pd.Data
     # Mean predictor
     mean_value = float(train_df["cycle_life"].mean())
     preds_mean = np.full_like(y_test, mean_value)
+    mean_metrics = compute_metrics(y_test, preds_mean)
+    mean_ci = bootstrap_metric_ci(y_test, preds_mean)
     results.append(
         {
             "Baseline": "Mean predictor",
-            "MAE": mean_absolute_error(y_test, preds_mean),
-            "R2": r2_score(y_test, preds_mean),
-            "MAPE (%)": mape(y_test, preds_mean),
-            "SMAPE (%)": smape(y_test, preds_mean),
+            "MAE": mean_metrics["MAE"],
+            "SMAPE (%)": mean_metrics["SMAPE"],
+            "R2": mean_metrics["R2"],
+            "MAE 95% CI": f"{mean_ci['MAE']['lower']:.2f} - {mean_ci['MAE']['upper']:.2f}",
+            "SMAPE 95% CI": (
+                f"{mean_ci['SMAPE']['lower']:.2f} - {mean_ci['SMAPE']['upper']:.2f}"
+            ),
+            "R2 95% CI": f"{mean_ci['R2']['lower']:.2f} - {mean_ci['R2']['upper']:.2f}",
         }
     )
 
@@ -82,26 +89,38 @@ def evaluate_baselines(train_df: pd.DataFrame, test_df: pd.DataFrame) -> pd.Data
     train_batches["batch"] = train_batches["cell_id"].str[:2]
     batch_means = train_batches.groupby("batch")["cycle_life"].mean().to_dict()
     preds_batch = test_df["cell_id"].str[:2].map(batch_means).to_numpy()
+    batch_metrics = compute_metrics(y_test, preds_batch)
+    batch_ci = bootstrap_metric_ci(y_test, preds_batch)
     results.append(
         {
             "Baseline": "Batch-only predictor",
-            "MAE": mean_absolute_error(y_test, preds_batch),
-            "R2": r2_score(y_test, preds_batch),
-            "MAPE (%)": mape(y_test, preds_batch),
-            "SMAPE (%)": smape(y_test, preds_batch),
+            "MAE": batch_metrics["MAE"],
+            "SMAPE (%)": batch_metrics["SMAPE"],
+            "R2": batch_metrics["R2"],
+            "MAE 95% CI": f"{batch_ci['MAE']['lower']:.2f} - {batch_ci['MAE']['upper']:.2f}",
+            "SMAPE 95% CI": (
+                f"{batch_ci['SMAPE']['lower']:.2f} - {batch_ci['SMAPE']['upper']:.2f}"
+            ),
+            "R2 95% CI": f"{batch_ci['R2']['lower']:.2f} - {batch_ci['R2']['upper']:.2f}",
         }
     )
 
     # Cycle-count-only predictor
     cycle_means = train_df.groupby("n_cycles")["cycle_life"].mean().to_dict()
     preds_cycle = test_df["n_cycles"].map(cycle_means).to_numpy()
+    cycle_metrics = compute_metrics(y_test, preds_cycle)
+    cycle_ci = bootstrap_metric_ci(y_test, preds_cycle)
     results.append(
         {
             "Baseline": "Cycle-count-only predictor",
-            "MAE": mean_absolute_error(y_test, preds_cycle),
-            "R2": r2_score(y_test, preds_cycle),
-            "MAPE (%)": mape(y_test, preds_cycle),
-            "SMAPE (%)": smape(y_test, preds_cycle),
+            "MAE": cycle_metrics["MAE"],
+            "SMAPE (%)": cycle_metrics["SMAPE"],
+            "R2": cycle_metrics["R2"],
+            "MAE 95% CI": f"{cycle_ci['MAE']['lower']:.2f} - {cycle_ci['MAE']['upper']:.2f}",
+            "SMAPE 95% CI": (
+                f"{cycle_ci['SMAPE']['lower']:.2f} - {cycle_ci['SMAPE']['upper']:.2f}"
+            ),
+            "R2 95% CI": f"{cycle_ci['R2']['lower']:.2f} - {cycle_ci['R2']['upper']:.2f}",
         }
     )
 
@@ -125,7 +144,7 @@ def main() -> None:
     # Plot metrics
     plots_dir = PROJECT_ROOT / "plots"
     plots_dir.mkdir(exist_ok=True)
-    metrics = ["MAE", "R2", "MAPE (%)", "SMAPE (%)"]
+    metrics = ["MAE", "R2", "SMAPE (%)"]
     fig, axes = plt.subplots(2, 2, figsize=(8, 6))
     axes = axes.ravel()
     labels = df_results["Baseline"].tolist()

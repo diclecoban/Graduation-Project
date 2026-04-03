@@ -1,5 +1,5 @@
 """
-Split the engineered feature table into train/validation/test partitions.
+Split the engineered feature table into train/calibration/test partitions.
 
 The script groups rows by ``cell_id`` so that every early-cycle window for
 the same battery ends up in the same split, avoiding label leakage.
@@ -29,7 +29,7 @@ DEFAULT_SOURCE = INTERMEDIATE_DIR / "features_top8_cycles.csv"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser( # Reading the argument
-        description="Create deterministic train/val/test splits from the feature table."
+        description="Create deterministic train/calibration/test splits from the feature table."
     )
     parser.add_argument(
         "--source", 
@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
         "--ratios",
         type=float,
         nargs=3,
-        metavar=("TRAIN", "VAL", "TEST"),
+        metavar=("TRAIN", "CALIBRATION", "TEST"),
         default=(0.7, 0.15, 0.15), # I used to make train and test (0.8, 0.2)
         help="Split ratios that sum to 1.0 (default: 0.7 0.15 0.15)",
     )
@@ -129,7 +129,7 @@ def main() -> None:
     SPLITS_DIR.mkdir(parents=True, exist_ok=True)
     outputs = [
         ("train", train_cells),
-        ("val", val_cells),
+        ("calibration", val_cells),
         ("test", test_cells),
     ]
 
@@ -139,7 +139,7 @@ def main() -> None:
 
     print(
         f"Split complete: train={len(train_cells)} cells, "
-        f"val={len(val_cells)} cells, test={len(test_cells)} cells"
+        f"calibration={len(val_cells)} cells, test={len(test_cells)} cells"
     )
 
 

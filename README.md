@@ -4,7 +4,8 @@
 
 - `2017-05-12_batchdata_updated_struct_errorcorrect.mat` -> `data/raw/batch1.pkl` -> `data/intermediate/features_top8_cycles.csv` (138 rows, 46 cells x 3 early-cycle windows).
 - Feature list: `IR_delta`, `dQd_slope`, `Qd_mean`, `IR_slope`, `Tavg_mean`, `IR_mean`, `Qd_std`, `IR_std`. Dropping Qd_std simply removes that column from the same CSV.
-- Each model trains with an 80/20 split inside every `n_cycles in {25, 50, 100}` slice. Metrics are stored in `outputs/results/results_top8_metrics.json` and summarized below.
+- Current split protocol is cell-ID-based `70/15/15` as train/calibration/test. Hyperparameter tuning is done with grouped 5-fold CV inside the training split.
+- Reported primary metrics are `MAE`, `sMAPE`, and `R²`, together with bootstrap `95%` confidence intervals for test-set experiments.
 
 ### Dataset overview
 
@@ -41,7 +42,7 @@ Sample curves from the raw MAT data:
 | XGBoost | 125.15 | 70.52 | 58.55 | 136.16 | 71.47 | 63.12 |
 | CatBoost | 130.09 | 124.98 | 76.31 | 136.01 | 102.11 | 79.12 |
 
-### MAPE vs n_cycles
+### sMAPE vs n_cycles
 
 | Model | 25 (var) | 50 (var) | 100 (var) | 25 (yok) | 50 (yok) | 100 (yok) |
 |-------|----------|----------|-----------|----------|----------|-----------|
@@ -69,7 +70,7 @@ Sample curves from the raw MAT data:
 
 - MAPE trends: `plots/mape_random_forest.png`, `plots/mape_xgboost.png`, `plots/mape_catboost.png`
 - Table snapshots (MAE | MAPE): `plots/table_random_forest.png`, `plots/table_xgboost.png`, `plots/table_catboost.png`
-- Aggregated metrics tables: `plots/table_results_mae_r2.png` (MAE/R²) and `plots/table_results_mape_smape.png` (MAPE/SMAPE) covering all models and Qd_std settings.
+- Aggregated metrics tables: `plots/table_results_mae_r2.png` (MAE/R²) and `plots/table_results_mape_smape.png` (supplementary error tables) covering all models and Qd_std settings.
 - CatBoost CV selection summary: `plots/table_catboost_cv_selected.png` (best hyperparameters per slice + test metrics) and hold-out vs CV comparison: `plots/table_holdout_vs_cv.png`.
 - Conformal prediction plots: `plots/conformal_random_forest.png`, `plots/conformal_xgboost.png`, `plots/conformal_catboost.png`, `plots/conformal_elastic_net.png`.
 - Feature vs cycle coverage: `plots/table_features_cycles.png`
@@ -77,43 +78,60 @@ Sample curves from the raw MAT data:
 
 ### Notes
 
-- Removing Qd_std improves MAE and MAPE for RF and XGB at 100 cycles, while CatBoost still benefits from keeping it for the early windows.
+- Removing Qd_std improves MAE and sMAPE for RF and XGB at 100 cycles, while CatBoost still benefits from keeping it for the early windows.
 - Only 46 samples exist per cycle slice (138 total), so the models are variance-limited; adding more batches would make the comparison more stable.
 - Even without Qd_std, `IR_delta`, `IR_slope`, and `Tavg_mean` stay dominant at 100 cycles, whereas Qd_std matters most in the 25-50 cycle windows.
 
-### Train / validation / test splits
+### Train / calibration / test splits
 
-- Use `python 2_modeling_featuring/split_train_val_test.py` to generate deterministic CSVs for each split. By default the script shuffles `cell_id` values with seed 42 and writes `data/splits/features_top8_cycles_{train,val,test}.csv`.
-- All `n_cycles` windows belonging to the same cell stay together, so the validation/test metrics reflect performance on unseen batteries rather than unseen windows from the same battery.
-- Point notebooks or training scripts to these split files to keep evaluation consistent with the cross-validation and hold-out reports.
+- Use `python 2_modeling_featuring/split_train_val_test.py` to generate deterministic CSVs for each split. By default the script shuffles `cell_id` values with seed 42 and writes `data/splits/features_top8_cycles_{train,calibration,test}.csv`.
+- The ratio is `0.7 / 0.15 / 0.15` for train/calibration/test.
+- All `n_cycles` windows belonging to the same `cell_id` stay together, so calibration/test metrics reflect performance on unseen batteries rather than unseen windows from the same battery.
+- There is no separate validation split. Hyperparameter selection is done only inside the training split with grouped 5-fold CV.
 
 ### Cross-validation
 
 - The script `2_modeling_featuring/cross_validate_models.py` evaluates Random Forest, XGBoost, CatBoost, and ElasticNet with grouped 5-fold cross-validation (grouped by `cell_id`) so that every battery is held out entirely in at least one fold.
-- Running `python 2_modeling_featuring/cross_validate_models.py` produces `outputs/results/results_top8_cv_metrics.json`, which stores the mean +/- std of MAE, R², MAPE, and SMAPE for each model / feature set / `n_cycles` slice.
-- Use these CV aggregates—together with the deterministic train/val/test splits—to report performance with lower variance than a single 80/20 hold-out.
+- Running `python 2_modeling_featuring/cross_validate_models.py` produces `outputs/results/results_top8_cv_metrics.json`, which stores the mean +/- std of MAE, R², and sMAPE-centered error metrics for each model / feature set / `n_cycles` slice.
+- Use these CV aggregates—together with the deterministic train/calibration/test splits—to report performance with lower variance than a single random hold-out.
 
 ### CV-guided final models
 
-- `python 2_modeling_featuring/train_catboost_cv_selected.py` combines the train and val CSVs, runs grouped CV over a small CatBoost hyperparameter grid (depth, learning_rate, iterations, l2_leaf_reg), picks the best configuration per `n_cycles`, and then retrains on train+val to score the held-out test cells.
-- The script saves `outputs/results/results_catboost_cv_selected.json` and a companion table `plots/table_catboost_cv_selected.png` summarizing the chosen hyperparameters, CV MAE (mean +/- std), and final test MAE/R²/MAPE/SMAPE for both feature sets (with vs without Qd_std).
-- Use this output to quote statements such as “CV ile seçilen CatBoost (depth=4, lr=0.05) 100 döngüde test SMAPE ≈ 13%” when comparing with future models.
+- `python 2_modeling_featuring/train_catboost_cv_selected.py` runs grouped 5-fold CV only on the training CSV, picks the best CatBoost configuration per `n_cycles`, and then retrains on the full training split to score the held-out test cells.
+- The script saves `outputs/results/results_catboost_cv_selected.json` and a companion table `plots/table_catboost_cv_selected.png` summarizing the chosen hyperparameters, CV MAE (mean +/- std), and final test MAE/sMAPE/R² values together with bootstrap 95% confidence intervals.
+- Use this output to quote statements such as “CV ile secilen CatBoost 100 dongude test sMAPE yaklasik %13 ve bootstrap %95 GA dar bir araliktadir” when comparing with future models.
 
 ## Appendices
+
+## Cross-Dataset Generalization
+
+- Bu calismada transfer learning, domain adaptation veya fine-tuning kullanilmamaktadir.
+- Deney protokolu basitce `A veri setinde egit, B veri setinde test et` seklindedir.
+- Bir batch uzerinde egitip diger batch uzerinde dogrudan test etmek icin `python 2_modeling_featuring/evaluate_cross_dataset_generalization.py --train-batch b1 --test-batch b2` komutunu kullan.
+- Ters yonu degerlendirmek icin `--train-batch b2 --test-batch b1` calistirilabilir.
+- Script sonuclari `outputs/results/results_cross_dataset_<train>_to_<test>.json` dosyasina kaydeder.
+
+## SOP Migration
+
+- SOP uyumlu sabit split dosyalari icin `python 2_modeling_featuring/generate_json_splits.py --dataset-prefixes b1 b2` calistir.
+- Bu splitler `cell_id` bazinda, `70/15/15` train/calibration/test olarak ve cycle-life quartile stratification ile uretilir.
+- Split dosyalari `splits/b1_<seed>.json` ve `splits/b2_<seed>.json` seklinde kaydedilir.
+- Gecis asamasindaki within/cross deneyleri icin `python 2_modeling_featuring/run_sop_protocol_baselines.py` komutunu kullan.
+- Bu script SOP metrik ve split protokolunu uygular, ancak henuz mevcut 8-feature tabloyu kullanir. 12-feature engineering tamamlandiginda ayni deney yapisi yeni feature set ile yeniden calistirilmalidir.
 
 ### Additional Figures
 
 - `plots/sample_voltage_curves.png`: Example discharge voltage vs time curves (cycles 6 and 96 for cell b1c0).
 - `plots/sample_capacity_fade.png`: Capacity trajectories for representative Batch 1 and Batch 2 cells.
 - Per-model MAE/MAPE tables and importance plots under `plots/`.
-- `plots/naive_baselines_metrics.png`: Bar charts of mean/batch-only/cycle-count-only predictors (MAE, R², MAPE, SMAPE).
+- `plots/naive_baselines_metrics.png`: Bar charts of mean/batch-only/cycle-count-only predictors (MAE, R², sMAPE).
 
 ### Detailed Results Tables
 
 - `outputs/results/results_top8_metrics.json`: Hold-out MAE/R²/MAPE for RandomForest, XGBoost, CatBoost (with/without Qd_std, per window).
-- `outputs/results/results_top8_cv_metrics.json`: Grouped 5-fold CV mean +/- std for MAE/R²/MAPE/SMAPE (all four models).
-- `outputs/results/results_catboost_cv_selected.json`: CV-selected CatBoost hyperparameters plus final train+val→test metrics.
-- `outputs/results/results_conformal_<model>.json`: per-model conformal quantiles and coverage values (train on train, calibration on val, evaluated on test).
+- `outputs/results/results_top8_cv_metrics.json`: Grouped 5-fold CV mean +/- std for MAE/R²/sMAPE-centered metrics (all four models).
+- `outputs/results/results_catboost_cv_selected.json`: CV-selected CatBoost hyperparameters plus final train→test metrics, where tuning is done only inside the training split.
+- `outputs/results/results_conformal_<model>.json`: per-model conformal quantiles and coverage values (train on train, calibrate on calibration, evaluate on test).
 
 ### Hyperparameter Configurations
 

@@ -1,10 +1,9 @@
 """
-Select CatBoost hyperparameters with grouped CV, then train on train+val and test.
+Select CatBoost hyperparameters with grouped CV inside the train split, then test.
 
 Usage:
     python 2_modeling_featuring/train_catboost_cv_selected.py \
         --train data/splits/features_top8_cycles_train.csv \
-        --val data/splits/features_top8_cycles_val.csv \
         --test data/splits/features_top8_cycles_test.csv
 """
 
@@ -20,6 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from catboost import CatBoostRegressor
+from metrics_utils import bootstrap_metric_ci, compute_metrics, symmetric_mape
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import GroupKFold
 
@@ -29,7 +29,6 @@ SPLITS_DIR = DATA_DIR / "splits"
 RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
 
 DEFAULT_TRAIN = SPLITS_DIR / "features_top8_cycles_train.csv"
-DEFAULT_VAL = SPLITS_DIR / "features_top8_cycles_val.csv"
 DEFAULT_TEST = SPLITS_DIR / "features_top8_cycles_test.csv"
 DEFAULT_JSON = RESULTS_DIR / "results_catboost_cv_selected.json"
 DEFAULT_TABLE = PROJECT_ROOT / "plots/table_catboost_cv_selected.png"
@@ -67,10 +66,9 @@ CATBOOST_GRID = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Tune CatBoost hyperparameters with GroupKFold CV, then score on test."
+        description="Tune CatBoost hyperparameters with train-only GroupKFold CV, then score on test."
     )
     parser.add_argument("--train", type=Path, default=DEFAULT_TRAIN, help="Train CSV path.")
-    parser.add_argument("--val", type=Path, default=DEFAULT_VAL, help="Validation CSV path.")
     parser.add_argument("--test", type=Path, default=DEFAULT_TEST, help="Test CSV path.")
     parser.add_argument("--n-splits", type=int, default=5, help="Number of GroupKFold splits.")
     parser.add_argument(
@@ -95,15 +93,6 @@ def load_csv(path: Path) -> pd.DataFrame:
     df = df.copy()
     df["cycle_life"] = pd.to_numeric(df["cycle_life"], errors="coerce")
     return df.dropna(subset=["cycle_life"])
-
-
-def symmetric_mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
-    diff = np.abs(y_pred - y_true)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        smape = np.where(denom == 0, 0.0, diff / denom)
-    return float(np.mean(smape) * 100.0)
-
 
 def run_group_cv(
     df: pd.DataFrame,
@@ -184,12 +173,10 @@ def train_and_test(
     )
     model.fit(train_df[feature_cols], train_df["cycle_life"])
     preds = model.predict(test_df[feature_cols])
-    return {
-        "MAE": float(mean_absolute_error(test_df["cycle_life"], preds)),
-        "R2": float(r2_score(test_df["cycle_life"], preds)),
-        "MAPE": float(np.mean(np.abs((test_df["cycle_life"] - preds) / test_df["cycle_life"])) * 100.0),
-        "SMAPE": symmetric_mape(test_df["cycle_life"], preds),
-    }
+    y_true = test_df["cycle_life"].to_numpy()
+    metrics = compute_metrics(y_true, preds)
+    metrics["bootstrap_95_ci"] = bootstrap_metric_ci(y_true, preds)
+    return metrics
 
 
 def render_table(summary: dict, output_path: Path) -> None:
@@ -208,9 +195,12 @@ def render_table(summary: dict, output_path: Path) -> None:
                     "iterations": params["iterations"],
                     "CV MAE (mean +/- std)": f"{cv_mae['mean']:.2f} +/- {cv_mae['std']:.2f}",
                     "Test MAE": f"{test_metrics['MAE']:.2f}",
+                    "Test sMAPE": f"{test_metrics['SMAPE']:.2f}",
                     "Test R2": f"{test_metrics['R2']:.2f}",
-                    "Test MAPE": f"{test_metrics['MAPE']:.2f}",
-                    "Test SMAPE": f"{test_metrics['SMAPE']:.2f}",
+                    "MAE 95% CI": (
+                        f"{test_metrics['bootstrap_95_ci']['MAE']['lower']:.2f} - "
+                        f"{test_metrics['bootstrap_95_ci']['MAE']['upper']:.2f}"
+                    ),
                 }
             )
 
@@ -226,7 +216,7 @@ def render_table(summary: dict, output_path: Path) -> None:
     fig_height = max(3.0, 0.4 * len(df) + 1.5)
     fig, ax = plt.subplots(figsize=(12, fig_height))
     ax.axis("off")
-    col_widths = [1.1, 0.8, 0.6, 0.9, 0.8, 1.5, 0.8, 0.8, 0.8, 0.8]
+    col_widths = [1.1, 0.8, 0.6, 0.9, 0.8, 1.5, 0.8, 0.8, 0.8, 1.2]
     table = ax.table(
         cellText=df.values,
         colLabels=df.columns,
@@ -254,7 +244,7 @@ def render_table(summary: dict, output_path: Path) -> None:
             cell.get_text().set_color(text_color)
             cell.set_height(cell.get_height() * 1.2)
 
-    ax.set_title("CatBoost CV-selected hyperparameters & test metrics", fontsize=14, pad=20)
+    ax.set_title("CatBoost train-CV hyperparameters & test metrics", fontsize=14, pad=20)
     fig.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
     output_path.parent.mkdir(exist_ok=True)
     fig.savefig(output_path, dpi=250, bbox_inches="tight")
@@ -265,16 +255,13 @@ def render_table(summary: dict, output_path: Path) -> None:
 def main() -> None:
     args = parse_args()
     train_df = load_csv(args.train)
-    val_df = load_csv(args.val)
     test_df = load_csv(args.test)
-
-    train_full = pd.concat([train_df, val_df], ignore_index=True)
 
     summary: Dict[str, dict] = {}
     for feature_key, feature_cols in FEATURE_SETS.items():
         summary[feature_key] = {}
         for n_cycles in CYCLES:
-            train_subset = train_full[train_full["n_cycles"] == n_cycles]
+            train_subset = train_df[train_df["n_cycles"] == n_cycles]
             test_subset = test_df[test_df["n_cycles"] == n_cycles]
             if train_subset.empty or test_subset.empty:
                 continue
