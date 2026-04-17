@@ -27,6 +27,12 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import ElasticNetCV
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from sop_utils import (
+    load_prepared_dataset,
+    parse_dataset_label_map,
+    parse_feature_columns,
+    resolve_feature_columns,
+)
 from xgboost import XGBRegressor
 
 
@@ -35,23 +41,6 @@ DATA_DIR = PROJECT_ROOT / "data"
 INTERMEDIATE_DIR = DATA_DIR / "intermediate"
 RESULTS_DIR = PROJECT_ROOT / "outputs" / "results"
 DEFAULT_DATASET = INTERMEDIATE_DIR / "features_top8_cycles.csv"
-
-BASE_FEATURES = [
-    "IR_delta",
-    "dQd_slope",
-    "Qd_mean",
-    "IR_slope",
-    "Tavg_mean",
-    "IR_mean",
-    "Qd_std",
-    "IR_std",
-]
-
-FEATURE_SETS = {
-    "with_qd_std": BASE_FEATURES,
-    "without_qd_std": [feature for feature in BASE_FEATURES if feature != "Qd_std"],
-}
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -81,20 +70,49 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional JSON output path. Default is derived from train/test batch names.",
     )
+    parser.add_argument(
+        "--feature-set",
+        type=str,
+        default="top8",
+        help="Named feature schema: top8, top7_no_qd_std, sop12_transition.",
+    )
+    parser.add_argument(
+        "--feature-columns",
+        type=str,
+        default=None,
+        help="Optional comma-separated feature list that overrides --feature-set.",
+    )
+    parser.add_argument(
+        "--label-column",
+        type=str,
+        default="cycle_life",
+        help="Default label column to score against.",
+    )
+    parser.add_argument(
+        "--dataset-label-map",
+        type=str,
+        default=None,
+        help="Optional per-dataset relabeling map, for example: b1:cycle_life,b2:eol_80_cycle",
+    )
+    parser.add_argument(
+        "--censor-column",
+        type=str,
+        default=None,
+        help="Optional censoring indicator column.",
+    )
+    parser.add_argument(
+        "--drop-censored",
+        action="store_true",
+        help="Exclude rows flagged by --censor-column before training/evaluation.",
+    )
+    parser.add_argument(
+        "--windows",
+        nargs="+",
+        type=int,
+        default=[25, 50, 100],
+        help="Cycle windows to evaluate.",
+    )
     return parser.parse_args()
-
-
-def load_dataset(path: Path) -> pd.DataFrame:
-    if not path.exists():
-        raise SystemExit(f"Dataset bulunamadi: {path}")
-    df = pd.read_csv(path)
-    df = df.copy()
-    df["cycle_life"] = pd.to_numeric(df["cycle_life"], errors="coerce")
-    df.dropna(subset=["cycle_life", "cell_id", "n_cycles"], inplace=True)
-    df["batch_prefix"] = df["cell_id"].astype(str).str.extract(r"^(b\d+)")
-    if df["batch_prefix"].isna().any():
-        raise SystemExit("Bazi satirlarda cell_id icinden batch prefix cikartilamadi.")
-    return df
 
 def build_models() -> dict[str, Callable[[], object]]:
     rf_params = dict(
@@ -144,41 +162,42 @@ def evaluate_direction(
     train_batch: str,
     test_batch: str,
     models: dict[str, Callable[[], object]],
-) -> dict[str, dict[str, dict[int, dict[str, float]]]]:
-    summary: dict[str, dict[str, dict[int, dict[str, float]]]] = {}
+    *,
+    feature_columns: list[str],
+    target_column: str,
+    windows: list[int],
+) -> dict[str, dict[int, dict[str, float]]]:
+    summary: dict[str, dict[int, dict[str, float]]] = {}
 
     for model_name, build_model in models.items():
-        summary[model_name] = {}
-        for feature_key, feature_cols in FEATURE_SETS.items():
-            cycle_results: dict[int, dict[str, float]] = {}
-            for n_cycles in (25, 50, 100):
-                train_df = df[
-                    (df["batch_prefix"] == train_batch) & (df["n_cycles"] == n_cycles)
-                ].copy()
-                test_df = df[
-                    (df["batch_prefix"] == test_batch) & (df["n_cycles"] == n_cycles)
-                ].copy()
-                if train_df.empty or test_df.empty:
-                    continue
+        cycle_results: dict[int, dict[str, float]] = {}
+        for n_cycles in windows:
+            train_df = df[
+                (df["dataset_prefix"] == train_batch) & (df["n_cycles"] == n_cycles)
+            ].copy()
+            test_df = df[
+                (df["dataset_prefix"] == test_batch) & (df["n_cycles"] == n_cycles)
+            ].copy()
+            if train_df.empty or test_df.empty:
+                continue
 
-                cols = [col for col in feature_cols if col in train_df.columns]
-                train_df.dropna(subset=cols + ["cycle_life"], inplace=True)
-                test_df.dropna(subset=cols + ["cycle_life"], inplace=True)
-                if train_df.empty or test_df.empty:
-                    continue
+            train_df.dropna(subset=feature_columns + [target_column], inplace=True)
+            test_df.dropna(subset=feature_columns + [target_column], inplace=True)
+            if train_df.empty or test_df.empty:
+                continue
 
-                model = build_model()
-                model.fit(train_df[cols], train_df["cycle_life"])
-                preds = model.predict(test_df[cols])
+            model = build_model()
+            model.fit(train_df[feature_columns], train_df[target_column])
+            preds = model.predict(test_df[feature_columns])
 
-                y_true = test_df["cycle_life"].to_numpy()
-                metrics = compute_metrics(y_true, preds)
-                metrics["bootstrap_95_ci"] = bootstrap_metric_ci(y_true, preds)
-                metrics["train_rows"] = int(len(train_df))
-                metrics["test_rows"] = int(len(test_df))
-                cycle_results[n_cycles] = metrics
+            y_true = test_df[target_column].to_numpy()
+            metrics = compute_metrics(y_true, preds)
+            metrics["bootstrap_95_ci"] = bootstrap_metric_ci(y_true, preds)
+            metrics["train_rows"] = int(len(train_df))
+            metrics["test_rows"] = int(len(test_df))
+            cycle_results[n_cycles] = metrics
 
-            summary[model_name][feature_key] = cycle_results
+        summary[model_name] = cycle_results
     return summary
 
 
@@ -194,8 +213,20 @@ def main() -> None:
             / f"results_cross_dataset_{args.train_batch}_to_{args.test_batch}.json"
         )
 
-    df = load_dataset(args.dataset)
-    available_batches = sorted(df["batch_prefix"].dropna().unique().tolist())
+    prepared = load_prepared_dataset(
+        args.dataset,
+        default_label_column=args.label_column,
+        dataset_label_map=parse_dataset_label_map(args.dataset_label_map),
+        censor_column=args.censor_column,
+        drop_censored=args.drop_censored,
+    )
+    df = prepared.frame
+    feature_columns = resolve_feature_columns(
+        df,
+        feature_set=args.feature_set,
+        explicit_columns=parse_feature_columns(args.feature_columns),
+    )
+    available_batches = sorted(df["dataset_prefix"].dropna().unique().tolist())
     if args.train_batch not in available_batches:
         raise SystemExit(
             f"Train batch bulunamadi: {args.train_batch}. Mevcut batch'ler: {available_batches}"
@@ -209,12 +240,25 @@ def main() -> None:
         "protocol": "train_on_A_test_on_B_without_adaptation",
         "train_batch": args.train_batch,
         "test_batch": args.test_batch,
-        "models": evaluate_direction(df, args.train_batch, args.test_batch, build_models()),
+        "dataset": str(args.dataset),
+        "feature_set": args.feature_set,
+        "feature_columns": feature_columns,
+        "target_column": prepared.target_column,
+        "windows": args.windows,
+        "censor_summary": prepared.censor_summary,
+        "models": evaluate_direction(
+            df,
+            args.train_batch,
+            args.test_batch,
+            build_models(),
+            feature_columns=feature_columns,
+            target_column=prepared.target_column,
+            windows=args.windows,
+        ),
     }
 
-    for model_name, feature_sets in summary["models"].items():
-        for feature_key, cycles_data in feature_sets.items():
-            print(f"{model_name} ({feature_key}) -> {cycles_data}")
+    for model_name, cycles_data in summary["models"].items():
+        print(f"{model_name} -> {cycles_data}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:

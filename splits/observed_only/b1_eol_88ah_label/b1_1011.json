@@ -1,0 +1,14 @@
+{
+  "seed": 1011,
+  "train": [
+    "b1c0",
+    "b1c1",
+    "b1c3"
+  ],
+  "calibration": [
+    "b1c4"
+  ],
+  "test": [
+    "b1c2"
+  ]
+}

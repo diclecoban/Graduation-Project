@@ -112,12 +112,13 @@ def build_split_payload(
     calibration_ratio: float = 0.15,
     test_ratio: float = 0.15,
     seed: int,
+    stratify_bins: int = 4,
 ) -> dict[str, list[str] | int]:
     if not math.isclose(train_ratio + calibration_ratio + test_ratio, 1.0):
         raise ValueError("Split ratios must sum to 1.0.")
 
     values = [float(record["cycle_life"]) for record in cell_records]
-    labels = quartile_labels(values, bins=4)
+    labels = quartile_labels(values, bins=stratify_bins)
 
     label_to_indices: dict[int, list[int]] = {}
     for idx, label in enumerate(labels):

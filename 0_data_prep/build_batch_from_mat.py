@@ -1,17 +1,17 @@
 """
-Convert the Stanford battery .mat datasets into pickle files.
+Convert Stanford battery .mat datasets into pickle files.
 
 Each pickle matches the structure expected by the feature engineering
-notebooks (same schema as the original ``batch1.pkl``).
+notebooks. The loader looks both in the original dataset folder and at the
+project root so manually added MAT files can be used without moving them.
 """
 
 from __future__ import annotations
 
-import pickle
 import argparse
 import pickle
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import Dict
 
 import h5py
 import numpy as np
@@ -24,16 +24,22 @@ DATASET_ROOT = (
     / "data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master"
     / "dataset"
 )
+ROOT_FALLBACK = PROJECT_ROOT
 DATASETS = [
     {
         "name": "batch1",
         "cell_prefix": "b1",
-        "mat_path": DATASET_ROOT / "2017-05-12_batchdata_updated_struct_errorcorrect.mat",
+        "mat_filename": "2017-05-12_batchdata_updated_struct_errorcorrect.mat",
     },
     {
         "name": "batch2",
         "cell_prefix": "b2",
-        "mat_path": DATASET_ROOT / "2018-02-20_batchdata_updated_struct_errorcorrect.mat",
+        "mat_filename": "2018-02-20_batchdata_updated_struct_errorcorrect.mat",
+    },
+    {
+        "name": "batch3_varcharge",
+        "cell_prefix": "b3",
+        "mat_filename": "2018-04-03_varcharge_batchdata_updated_struct_errorcorrect.mat",
     },
 ]
 
@@ -43,11 +49,20 @@ def _decode_string(dataset) -> str:
     return dataset.tobytes()[::2].decode().strip()
 
 
+def _resolve_mat_path(filename: str) -> Path:
+    candidates = [
+        DATASET_ROOT / filename,
+        ROOT_FALLBACK / filename,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    searched = ", ".join(str(candidate) for candidate in candidates)
+    raise SystemExit(f"MAT file not found. Looked in: {searched}")
+
+
 def _load_dataset(mat_path: Path, cell_prefix: str) -> Dict[str, dict]:
     """Return the parsed dataset for ``mat_path`` with keys prefixed."""
-    if not mat_path.exists():
-        raise SystemExit(f"MAT file not found: {mat_path}")
-
     print(f"Loading {mat_path.name} ...")
     with h5py.File(mat_path, "r") as f:
         batch = f["batch"]
@@ -108,7 +123,8 @@ def main() -> None:
     for dataset in DATASETS:
         if selected and dataset["name"] not in selected:
             continue
-        batch_dict = _load_dataset(dataset["mat_path"], dataset["cell_prefix"])
+        mat_path = _resolve_mat_path(dataset["mat_filename"])
+        batch_dict = _load_dataset(mat_path, dataset["cell_prefix"])
         RAW_DIR.mkdir(parents=True, exist_ok=True)
         output_path = RAW_DIR / f"{dataset['name']}.pkl"
         print(f"Writing pickle to {output_path}")

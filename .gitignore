@@ -2,6 +2,8 @@
 batch1.pkl
 batch1_old.pkl
 batch2.pkl
+*.mat
+*.pptx
 data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master/dataset/
 
 # Generated visualization assets

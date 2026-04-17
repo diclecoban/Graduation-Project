@@ -21,6 +21,12 @@ from split_protocol_utils import (
     DEFAULT_SEEDS,
     load_split_json,
 )
+from sop_utils import (
+    load_prepared_dataset,
+    parse_dataset_label_map,
+    parse_feature_columns,
+    resolve_feature_columns,
+)
 from xgboost import XGBRegressor
 
 
@@ -28,17 +34,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATASET = PROJECT_ROOT / "data" / "intermediate" / "features_top8_cycles.csv"
 DEFAULT_SPLIT_DIR = PROJECT_ROOT / "splits"
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs" / "results" / "results_sop_protocol_baselines.json"
-
-FEATURES = [
-    "IR_delta",
-    "dQd_slope",
-    "Qd_mean",
-    "IR_slope",
-    "Tavg_mean",
-    "IR_mean",
-    "Qd_std",
-    "IR_std",
-]
 PRIMARY_WINDOWS = (100, 50)
 
 
@@ -48,20 +43,49 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split-dir", type=Path, default=DEFAULT_SPLIT_DIR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--seeds", nargs="+", type=int, default=list(DEFAULT_SEEDS))
+    parser.add_argument(
+        "--feature-set",
+        type=str,
+        default="top8",
+        help="Named feature schema: top8, top7_no_qd_std, sop12_transition.",
+    )
+    parser.add_argument(
+        "--feature-columns",
+        type=str,
+        default=None,
+        help="Optional comma-separated feature list that overrides --feature-set.",
+    )
+    parser.add_argument(
+        "--label-column",
+        type=str,
+        default="cycle_life",
+        help="Default label column to score against.",
+    )
+    parser.add_argument(
+        "--dataset-label-map",
+        type=str,
+        default=None,
+        help="Optional per-dataset relabeling map, for example: b1:cycle_life,b2:eol_80_cycle",
+    )
+    parser.add_argument(
+        "--censor-column",
+        type=str,
+        default=None,
+        help="Optional censoring indicator column.",
+    )
+    parser.add_argument(
+        "--drop-censored",
+        action="store_true",
+        help="Exclude rows flagged by --censor-column before training/evaluation.",
+    )
+    parser.add_argument(
+        "--windows",
+        nargs="+",
+        type=int,
+        default=list(PRIMARY_WINDOWS),
+        help="Cycle windows to evaluate.",
+    )
     return parser.parse_args()
-
-
-def load_feature_table(path: Path) -> pd.DataFrame:
-    if not path.exists():
-        raise SystemExit(f"Feature CSV not found: {path}")
-    df = pd.read_csv(path)
-    df = df.copy()
-    df["cycle_life"] = pd.to_numeric(df["cycle_life"], errors="coerce")
-    df.dropna(subset=["cell_id", "n_cycles", "cycle_life"], inplace=True)
-    df["dataset_prefix"] = df["cell_id"].astype(str).str.extract(r"^(b\d+)")
-    if df["dataset_prefix"].isna().any():
-        raise SystemExit("Could not infer dataset prefix from every cell_id.")
-    return df
 
 
 def subset_by_cells(df: pd.DataFrame, cell_ids: list[str]) -> pd.DataFrame:
@@ -74,7 +98,7 @@ def build_model_factories() -> dict[str, object]:
             StandardScaler(),
             ElasticNetCV(
                 l1_ratio=[0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-                cv=5,
+                cv=3,
                 max_iter=50000,
                 random_state=42,
             ),
@@ -94,11 +118,18 @@ def build_model_factories() -> dict[str, object]:
     }
 
 
-def score_model(model, train_df: pd.DataFrame, test_df: pd.DataFrame) -> dict:
-    X_train = train_df[FEATURES].to_numpy()
-    y_train = train_df["cycle_life"].to_numpy()
-    X_test = test_df[FEATURES].to_numpy()
-    y_test = test_df["cycle_life"].to_numpy()
+def score_model(
+    model,
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    *,
+    feature_columns: list[str],
+    target_column: str,
+) -> dict:
+    X_train = train_df[feature_columns].to_numpy()
+    y_train = train_df[target_column].to_numpy()
+    X_test = test_df[feature_columns].to_numpy()
+    y_test = test_df[target_column].to_numpy()
     model.fit(X_train, y_train)
     preds = model.predict(X_test)
     metrics = compute_metrics(y_test, preds)
@@ -134,16 +165,24 @@ def run_experiment(
     train_prefix: str,
     test_prefix: str,
     seeds: list[int],
+    *,
+    feature_columns: list[str],
+    target_column: str,
+    windows: list[int],
 ) -> dict:
     factories = build_model_factories()
     results: dict[str, dict] = {}
     for model_name, factory in factories.items():
         results[model_name] = {}
-        for n_cycles in PRIMARY_WINDOWS:
+        for n_cycles in windows:
             per_seed: list[dict] = []
             for seed in seeds:
-                train_split = load_split_json(split_dir / f"{train_prefix}_{seed}.json")
-                test_split = load_split_json(split_dir / f"{test_prefix}_{seed}.json")
+                train_split_path = split_dir / f"{train_prefix}_{seed}.json"
+                test_split_path = split_dir / f"{test_prefix}_{seed}.json"
+                if not train_split_path.exists() or not test_split_path.exists():
+                    continue
+                train_split = load_split_json(train_split_path)
+                test_split = load_split_json(test_split_path)
 
                 train_df = subset_by_cells(
                     df[(df["dataset_prefix"] == train_prefix) & (df["n_cycles"] == n_cycles)],
@@ -153,29 +192,93 @@ def run_experiment(
                     df[(df["dataset_prefix"] == test_prefix) & (df["n_cycles"] == n_cycles)],
                     test_split["test"],
                 )
+                train_df.dropna(subset=feature_columns + [target_column], inplace=True)
+                test_df.dropna(subset=feature_columns + [target_column], inplace=True)
                 if train_df.empty or test_df.empty:
                     continue
-                per_seed.append(score_model(factory(), train_df, test_df))
+                per_seed.append(
+                    score_model(
+                        factory(),
+                        train_df,
+                        test_df,
+                        feature_columns=feature_columns,
+                        target_column=target_column,
+                    )
+                )
             results[model_name][str(n_cycles)] = aggregate_seed_metrics(per_seed)
     return results
 
 
 def main() -> None:
     args = parse_args()
-    feature_df = load_feature_table(args.dataset)
+    prepared = load_prepared_dataset(
+        args.dataset,
+        default_label_column=args.label_column,
+        dataset_label_map=parse_dataset_label_map(args.dataset_label_map),
+        censor_column=args.censor_column,
+        drop_censored=args.drop_censored,
+    )
+    feature_df = prepared.frame
+    feature_columns = resolve_feature_columns(
+        feature_df,
+        feature_set=args.feature_set,
+        explicit_columns=parse_feature_columns(args.feature_columns),
+    )
     summary = {
         "protocol_version": "sop_baseline_transition",
         "notes": [
             "Uses SOP JSON splits, seed averaging, and bootstrap confidence intervals.",
-            "Still runs on the current 8-feature table until the 12-feature engineering stage is implemented.",
+            "Supports configurable feature sets, labels, and optional censor filtering.",
         ],
+        "dataset": str(args.dataset),
+        "feature_set": args.feature_set,
+        "feature_columns": feature_columns,
+        "target_column": prepared.target_column,
+        "windows": args.windows,
+        "censor_summary": prepared.censor_summary,
         "within_dataset": {
-            "b1_to_b1": run_experiment(feature_df, args.split_dir, "b1", "b1", args.seeds),
-            "b2_to_b2": run_experiment(feature_df, args.split_dir, "b2", "b2", args.seeds),
+            "b1_to_b1": run_experiment(
+                feature_df,
+                args.split_dir,
+                "b1",
+                "b1",
+                args.seeds,
+                feature_columns=feature_columns,
+                target_column=prepared.target_column,
+                windows=args.windows,
+            ),
+            "b2_to_b2": run_experiment(
+                feature_df,
+                args.split_dir,
+                "b2",
+                "b2",
+                args.seeds,
+                feature_columns=feature_columns,
+                target_column=prepared.target_column,
+                windows=args.windows,
+            ),
         },
         "cross_dataset": {
-            "b1_to_b2": run_experiment(feature_df, args.split_dir, "b1", "b2", args.seeds),
-            "b2_to_b1": run_experiment(feature_df, args.split_dir, "b2", "b1", args.seeds),
+            "b1_to_b2": run_experiment(
+                feature_df,
+                args.split_dir,
+                "b1",
+                "b2",
+                args.seeds,
+                feature_columns=feature_columns,
+                target_column=prepared.target_column,
+                windows=args.windows,
+            ),
+            "b2_to_b1": run_experiment(
+                feature_df,
+                args.split_dir,
+                "b2",
+                "b1",
+                args.seeds,
+                feature_columns=feature_columns,
+                target_column=prepared.target_column,
+                windows=args.windows,
+            ),
         },
     }
 
