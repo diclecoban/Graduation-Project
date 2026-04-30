@@ -47,9 +47,10 @@ def load_pickle(path: Path) -> dict[str, Any]:
         return pickle.load(handle)
 
 
-def first_positive(values: np.ndarray) -> float:
-    positive = values[np.isfinite(values) & (values > 0)]
-    return float(positive[0]) if len(positive) else float("nan")
+def median_q0(values: np.ndarray) -> float:
+    window = values[1:5]
+    positive = window[np.isfinite(window) & (window > 0)]
+    return float(np.median(positive)) if len(positive) else float("nan")
 
 
 def first_crossing_cycle(
@@ -125,7 +126,7 @@ def build_rows(
 
         qd = np.asarray(cell_data["summary"]["QD"], dtype=float).ravel()
         cycles = np.asarray(cell_data["summary"]["cycle"], dtype=float).ravel()
-        q0 = first_positive(qd)
+        q0 = median_q0(qd)
         threshold_80 = 0.8 * q0 if math.isfinite(q0) else float("nan")
         threshold_85 = 0.85 * q0 if math.isfinite(q0) else float("nan")
         eol_80 = (
@@ -155,7 +156,7 @@ def build_rows(
                 "dataset_prefix": cell_id.split("c", 1)[0],
                 "stored_cycle_life": stored_cycle_life,
                 "q0": q0,
-                "q0_source": "first_positive_qd",
+                "q0_source": "median_qd_cycles_2_to_5",
                 "eol_80pct_q0_cycle": eol_80,
                 "eol_80pct_q0_label": eol_80 if math.isfinite(eol_80) else float(observed_cycles + 1),
                 "is_censored_80pct_q0": int(not math.isfinite(eol_80)),

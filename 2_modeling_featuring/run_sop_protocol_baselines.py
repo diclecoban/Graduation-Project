@@ -99,6 +99,13 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Cross-dataset pairs in train:test format, for example matr:hust.",
     )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=["random_forest", "elastic_net", "xgboost", "catboost"],
+        choices=["random_forest", "elastic_net", "xgboost", "catboost"],
+        help="Subset of models to run.",
+    )
     return parser.parse_args()
 
 
@@ -106,8 +113,8 @@ def subset_by_cells(df: pd.DataFrame, cell_ids: list[str]) -> pd.DataFrame:
     return df[df["cell_id"].isin(cell_ids)].copy()
 
 
-def build_model_factories() -> dict[str, object]:
-    return {
+def build_model_factories(selected_models: list[str] | None = None) -> dict[str, object]:
+    factories = {
         "random_forest": lambda: RandomForestRegressor(
             n_estimators=400,
             min_samples_leaf=2,
@@ -145,6 +152,9 @@ def build_model_factories() -> dict[str, object]:
             verbose=False,
         ),
     }
+    if selected_models is None:
+        return factories
+    return {name: factories[name] for name in selected_models}
 
 
 def score_model(
@@ -195,11 +205,12 @@ def run_experiment(
     test_prefix: str,
     seeds: list[int],
     *,
+    model_names: list[str],
     feature_columns: list[str],
     target_column: str,
     windows: list[int],
 ) -> dict:
-    factories = build_model_factories()
+    factories = build_model_factories(model_names)
     results: dict[str, dict] = {}
     for model_name, factory in factories.items():
         results[model_name] = {}
@@ -260,6 +271,7 @@ def main() -> None:
             prefix,
             prefix,
             args.seeds,
+            model_names=args.models,
             feature_columns=feature_columns,
             target_column=prepared.target_column,
             windows=args.windows,
@@ -277,6 +289,7 @@ def main() -> None:
             train_prefix,
             test_prefix,
             args.seeds,
+            model_names=args.models,
             feature_columns=feature_columns,
             target_column=prepared.target_column,
             windows=args.windows,

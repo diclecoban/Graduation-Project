@@ -2,6 +2,8 @@
 batch1.pkl
 batch1_old.pkl
 batch2.pkl
+batch3_varcharge.pkl
+data/raw/*.pkl
 *.mat
 *.pptx
 data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master/dataset/
@@ -15,3 +17,9 @@ data/processed/HUST/
 plots/
 venv/
 .DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+*.code-workspace
+catboost_info/

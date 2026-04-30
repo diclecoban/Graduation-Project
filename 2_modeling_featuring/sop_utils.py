@@ -21,35 +21,26 @@ TOP8_FEATURES = [
 
 # Transition mapping based on the richer early-cycle table that already exists
 # in the repository. This can be replaced with the final SOP list if needed.
-SOP12_TRANSITION_FEATURES = [
-    "IR_delta",
-    "dQd_slope",
-    "Qd_mean",
-    "IR_slope",
-    "Tavg_mean",
-    "IR_mean",
-    "Qd_std",
-    "IR_std",
-    "dqdv_peak_delta",
-    "dqdv_peak_std",
-    "dqdv_area_delta",
-    "dqdv_peakpos_delta",
+SOP12_FEATURES = [
+    "Qdis_N",
+    "delta_Qdis",
+    "retention_ratio",
+    "slope_linear",
+    "variance_Qdis",
+    "range_Qdis",
+    "max_drop",
+    "std_diff",
+    "skewness_Qdis",
+    "slope_ratio",
+    "Qdis_cycle10",
+    "mean_diff",
 ]
 
 FEATURE_SETS = {
     "top8": TOP8_FEATURES,
     "top7_no_qd_std": [feature for feature in TOP8_FEATURES if feature != "Qd_std"],
-    "sop12_transition": SOP12_TRANSITION_FEATURES,
-    "sop12": SOP12_TRANSITION_FEATURES,
-    "sop_common_capacity_dqdv": [
-        "Qd_mean",
-        "Qd_std",
-        "dQd_slope",
-        "dqdv_peak_delta",
-        "dqdv_peak_std",
-        "dqdv_area_delta",
-        "dqdv_peakpos_delta",
-    ],
+    "sop12_transition": SOP12_FEATURES,
+    "sop12": SOP12_FEATURES,
 }
 
 
