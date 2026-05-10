@@ -1,25 +1,26 @@
-# Raw datasets and heavy intermediates
-batch1.pkl
-batch1_old.pkl
-batch2.pkl
-batch3_varcharge.pkl
-data/raw/*.pkl
-*.mat
-*.pptx
-data-driven-prediction-of-battery-cycle-life-before-capacity-degradation-master/dataset/
+# Raw datasets — too big for git, fetched at runtime by Phase A
+data/raw/
 HUST_data/
-data/HUST_data/
-data/raw/HUST_data/
-data/processed/HUST_data/
-data/processed/HUST/
+*.mat
+*.pkl
 
-# Generated visualization assets
-plots/
-venv/
+# Editor / OS noise
 .DS_Store
+.idea/
+.vscode/
 __pycache__/
 *.pyc
-*.pyo
 .ipynb_checkpoints/
-*.code-workspace
+
+# Python venvs
+venv/
+.venv/
+env/
+
+# CatBoost on-disk training logs
 catboost_info/
+
+# Local experiment scratch
+/tmp/
+*.log
+_teacher_repo/

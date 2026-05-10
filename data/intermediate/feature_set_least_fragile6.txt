@@ -1,0 +1,6 @@
+cycle_to_98pct
+exp_decay_k
+slope_linear
+slope_ratio
+linearity_r2
+cycle_to_99pct
