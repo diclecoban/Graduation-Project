@@ -11,7 +11,7 @@ Quick start:
     pip install -r requirements.txt
     python3 run_pipeline.py --phase extract        # download + audits + features
     python3 run_pipeline.py --phase model          # splits + VIF + headline experiments
-    python3 run_pipeline.py --phase analysis       # shift + feature transfer + concept + rescaling + CP
+    python3 run_pipeline.py --phase analysis       # shift + feature transfer + adaptation + CP
     python3 run_pipeline.py --stages audit_matr    # only one stage
     python3 run_pipeline.py --status               # which outputs exist
 
@@ -42,6 +42,13 @@ Stages:
                   -> data/intermediate/survival_censoring_summary.csv
     koopman_dmd   Hankel-DMD / Koopman-style early-capacity dynamics pilot
                   -> data/intermediate/koopman_dmd_summary.json
+    target_rescale
+                  Target-mean rescaling baseline (k=5/10/20 calibration cells)
+                  -> outputs/results_v2_target_rescale/results_summary.csv
+    domain_adaptation
+                  PyTorch CORAL/MMD representation alignment plus target
+                  residual calibration
+                  -> outputs/results_v2_domain_adaptation/results_summary.csv
     conformal     MAPIE split CP for within, naive cross, target CP, and
                   target-adapted CP
                   -> outputs/results_v2_conformal/results_summary.csv
@@ -215,6 +222,15 @@ def stage_target_rescale() -> int:
     return _run([PYTHON, "3_analysis/target_rescaling.py"])
 
 
+def stage_domain_adaptation() -> int:
+    combined = INTERMEDIATE_DIR / "features_sop12_combined.csv"
+    splits_root = PROJECT_ROOT / "splits" / "sop_v2"
+    if not combined.exists() or not splits_root.exists():
+        print("[skip] domain_adaptation: missing features or splits.")
+        return 1
+    return _run([PYTHON, "3_analysis/domain_adaptation.py"])
+
+
 def stage_conformal() -> int:
     combined = INTERMEDIATE_DIR / "features_sop12_combined.csv"
     splits_root = PROJECT_ROOT / "splits" / "sop_v2"
@@ -354,6 +370,15 @@ STAGES: dict[str, Stage] = {
             PROJECT_ROOT / "outputs" / "results_v2_target_rescale" / "results_summary.csv",
         ],
     ),
+    "domain_adaptation": Stage(
+        name="domain_adaptation",
+        description="PyTorch CORAL/MMD representation alignment plus target residual calibration",
+        run=stage_domain_adaptation,
+        outputs=[
+            PROJECT_ROOT / "outputs" / "results_v2_domain_adaptation" / "results_summary.csv",
+            PROJECT_ROOT / "docs" / "domain_adaptation_results.md",
+        ],
+    ),
     "conformal": Stage(
         name="conformal",
         description="MAPIE split CP intervals (within + cross + target-adapted)",
@@ -369,7 +394,7 @@ STAGES: dict[str, Stage] = {
 DEFAULT_ORDER = [
     "download", "audit_matr", "audit_hust", "features",
     "splits", "vif", "experiments",
-    "shift", "feature_transfer", "shap", "survival", "concept_shift", "koopman_dmd", "target_rescale", "conformal",
+    "shift", "feature_transfer", "shap", "survival", "concept_shift", "koopman_dmd", "target_rescale", "domain_adaptation", "conformal",
 ]
 
 # Phase shortcuts. Two-phase workflow:
@@ -380,7 +405,7 @@ DEFAULT_ORDER = [
 PHASES: dict[str, list[str]] = {
     "extract":  ["download", "audit_matr", "audit_hust", "features"],
     "model":    ["splits", "vif", "experiments"],
-    "analysis": ["shift", "feature_transfer", "shap", "survival", "concept_shift", "koopman_dmd", "target_rescale", "conformal"],
+    "analysis": ["shift", "feature_transfer", "shap", "survival", "concept_shift", "koopman_dmd", "target_rescale", "domain_adaptation", "conformal"],
     "all":      DEFAULT_ORDER,
 }
 

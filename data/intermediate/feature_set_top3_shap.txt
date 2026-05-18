@@ -1,0 +1,3 @@
+Qdis_N
+linearity_r2
+accel_mean

@@ -24,3 +24,19 @@ catboost_info/
 /tmp/
 *.log
 _teacher_repo/
+
+# Local plotting/cache artifacts
+.mplconfig/
+
+# Generated advisor/email helper outputs
+outputs/advisor_tables/*.html
+
+# Detailed regenerated experiment outputs (summary CSV/JSON/figures are kept selectively)
+outputs/**/results_detailed.csv
+
+# Detailed top-k per-k run folders; top-level top-k summaries are enough for reporting
+outputs/results_v2_topk_shap/k*_within/
+outputs/results_v2_topk_shap/k*_cross/
+
+# Local archives of superseded ablations
+outputs/archive/

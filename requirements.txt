@@ -25,3 +25,4 @@ mapie>=1.4
 shap>=0.50
 xgboost>=2.0
 catboost>=1.2
+torch>=2.2

@@ -1,0 +1,12 @@
+Qdis_N
+linearity_r2
+accel_mean
+Qdis_cycle10
+poly2_c
+range_Qdis
+slope_last_quarter
+poly2_a
+variance_Qdis
+slope_ratio
+sample_entropy
+mad_Qdis
