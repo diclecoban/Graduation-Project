@@ -1,10 +1,44 @@
-# Advisor Feedback Follow-up: Top-k and Shift/Calibration Comparison
+# Advisor Feedback Follow-up: Top-k, Concept Shift, Calibration, and CP
 
 This note answers the advisor's latest request:
 
-1. Run a short top-k feature sweep with k = 3, 6, 10, 12.
-2. Compare those results with conditional shift, target-side calibration, and
-   conformal prediction findings already present in the repository.
+1. Collect all features, top-k, raw transfer, CORAL-only, target calibration,
+   and CORAL + target calibration in one comparison table.
+2. Add conformal prediction comparison for source CP, CORAL-after-source CP,
+   target-domain CP, and target-adapted CP.
+3. Frame the cross-dataset problem as concept shift rather than only a central
+   lifetime-scale difference.
+
+## Advisor-facing Tables
+
+Rebuild the final tables with:
+
+```bash
+python3 3_analysis/coral_source_conformal.py
+python3 3_analysis/make_advisor_comparison_tables.py
+```
+
+Generated files:
+
+```text
+outputs/advisor_tables/advisor_point_comparison.md
+outputs/advisor_tables/advisor_point_comparison.csv
+outputs/advisor_tables/advisor_conformal_comparison.md
+outputs/advisor_tables/advisor_conformal_comparison.csv
+outputs/advisor_tables/advisor_followup_narrative.md
+outputs/results_v2_coral_source_cp/results_summary.csv
+```
+
+Main interpretation:
+
+- Top-k gives a compact within-dataset feature set, especially for HUST.
+- Top-k does not solve cross-dataset transfer; best top-k raw-transfer R2
+  remains negative in both directions.
+- CORAL is a covariate-alignment baseline, not the main solution.
+- CORAL-only and CORAL-after-source CP remain inadequate, so matching feature
+  distributions alone is insufficient.
+- Target-side calibration and target-domain/adapted conformal prediction are
+  more effective under concept shift.
 
 ## Reproducible Command
 
