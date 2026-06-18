@@ -1,0 +1,5 @@
+name: extended34_capacity_only
+mode: all_non_metadata
+capacity_normalized: false
+description: 34 capacity-only SOPv2 features from the combined feature CSV.
+

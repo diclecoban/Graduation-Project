@@ -1,0 +1,9 @@
+name: shap_topk
+ranking_source: data/intermediate/shap_feature_importance.csv
+k_values:
+  - 3
+  - 6
+  - 10
+  - 12
+feature_set_template: data/intermediate/feature_set_top{k}_shap.txt
+

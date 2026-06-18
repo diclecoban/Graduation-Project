@@ -1,0 +1,9 @@
+models:
+  - elastic_net
+  - pls
+  - random_forest
+  - xgboost
+  - catboost
+  - gaussian_process
+  - stacking
+

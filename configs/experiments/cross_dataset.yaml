@@ -1,0 +1,28 @@
+experiment:
+  name: cross_dataset_34feat_log
+  task: cross_dataset
+datasets:
+  - matr
+  - hust
+directions:
+  - matr_to_hust
+  - hust_to_matr
+seeds:
+  - 42
+  - 123
+  - 456
+  - 789
+  - 1011
+n_cycles:
+  - 100
+features:
+  config: configs/features/extended34.yaml
+models:
+  config: configs/models/default_models.yaml
+target:
+  log_target: true
+outputs:
+  dir: outputs/results_v2_cross_34feat_log
+  save_summary: true
+  save_detailed: true
+

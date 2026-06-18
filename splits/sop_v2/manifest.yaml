@@ -1,0 +1,30 @@
+protocol: sop_v2
+split_type: cell_level
+ratios:
+  train: 0.70
+  calibration: 0.15
+  test: 0.15
+stratification: cycle_life_quartiles
+censored_excluded: true
+seeds:
+  - 42
+  - 123
+  - 456
+  - 789
+  - 1011
+datasets:
+  - hust
+  - matr
+pivot_n_cycles: 100
+created_by: 2_models/generate_splits.py
+files:
+  - hust_42.json
+  - hust_123.json
+  - hust_456.json
+  - hust_789.json
+  - hust_1011.json
+  - matr_42.json
+  - matr_123.json
+  - matr_456.json
+  - matr_789.json
+  - matr_1011.json

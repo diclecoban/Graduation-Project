@@ -127,6 +127,7 @@ Install dependencies:
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 Check which stages already have outputs:
@@ -154,6 +155,28 @@ python3 run_pipeline.py --stages splits experiments
 python3 run_pipeline.py --stages shift shap survival
 python3 run_pipeline.py --stages target_rescale conformal
 ```
+
+Every non-status pipeline run writes local metadata under `outputs/runs/`,
+including the selected stages, Git state, environment details, stage commands,
+return codes, elapsed time, and output-file existence checks.
+
+---
+
+## Interactive Demo Dashboard
+
+The dependency-free research dashboard presents the thesis evidence chain
+using the repository's existing CSV/JSON outputs:
+
+```bash
+python3 dashboard/run_dashboard.py
+```
+
+Open `http://localhost:8765`. The dashboard includes within/cross-dataset
+results, transfer controls, conformal-prediction comparisons, an interactive
+feature--lifetime explorer, pipeline status, and a guided video-demo mode.
+
+The recommended narration is available in
+`docs/demo_video_script_en.md`.
 
 ---
 
@@ -229,6 +252,12 @@ source-to-target bias and restores useful uncertainty calibration.
 | File | Purpose |
 |---|---|
 | `docs/proje_baslangictan_bugune_ozet.md` | Full Turkish project history and technical summary |
+| `docs/akademik_deney_organizasyonu.md` | Evidence map: how existing experiments support the thesis argument |
+| `docs/bitirme_projesi_sunum_taslagi.md` | Slide-by-slide graduation project presentation outline |
+| `docs/graduation_presentation_outline_en.md` | English slide content and visual mapping |
+| `docs/presentation_assets/README.md` | Draw.io/Mermaid diagrams and generated presentation figures |
+| `docs/ieee_report/battery_lifetime_ieee.tex` | IEEE-format final technical report |
+| `docs/gtu_report/main.tex` | Graduation report in the official GTU LaTeX design |
 | `docs/tez_giris_metodoloji_tartisma_taslagi.md` | Thesis-ready Introduction, Methodology, Discussion draft |
 | `docs/advisor_feedback_followup.md` | Advisor-request follow-up and result interpretation |
 | `docs/mlops_refactoring_recommendations.md` | Suggested next-step architecture and MLOps roadmap |

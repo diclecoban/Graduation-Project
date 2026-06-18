@@ -1,0 +1,5 @@
+tracking:
+  backend: wandb
+  project: battery-lifetime-prediction
+  entity: null
+  enabled: false

@@ -1,0 +1,7 @@
+tracking:
+  backend: local
+  runs_dir: outputs/runs
+  log_config: true
+  log_metadata: true
+  log_stage_outputs: true
+

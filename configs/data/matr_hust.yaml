@@ -1,0 +1,16 @@
+datasets:
+  - matr
+  - hust
+primary_n_cycles: 100
+secondary_n_cycles: 50
+target_column: cycle_life
+censor_column: is_censored
+metadata_columns:
+  - dataset
+  - cell_id
+  - n_cycles
+  - q0
+  - cycle_life
+  - is_censored
+  - capacity_normalized
+

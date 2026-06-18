@@ -1,0 +1,6 @@
+models:
+  - catboost
+  - random_forest
+  - gaussian_process
+  - elastic_net
+

@@ -1,0 +1,8 @@
+project_root: .
+raw_dir: data/raw
+hust_raw_dir: data/raw/HUST_data
+intermediate_dir: data/intermediate
+features_path: data/intermediate/features_sop12_combined.csv
+splits_dir: splits/sop_v2
+outputs_dir: outputs
+

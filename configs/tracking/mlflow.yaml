@@ -1,0 +1,6 @@
+tracking:
+  backend: mlflow
+  tracking_uri: file:outputs/mlruns
+  experiment_name: battery_lifetime_prediction
+  enabled: false
+

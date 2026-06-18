@@ -1,0 +1,25 @@
+experiment:
+  name: within_dataset_34feat_log
+  task: within_dataset
+datasets:
+  - matr
+  - hust
+seeds:
+  - 42
+  - 123
+  - 456
+  - 789
+  - 1011
+n_cycles:
+  - 100
+features:
+  config: configs/features/extended34.yaml
+models:
+  config: configs/models/default_models.yaml
+target:
+  log_target: true
+outputs:
+  dir: outputs/results_v2_34feat_log
+  save_summary: true
+  save_detailed: true
+

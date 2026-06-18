@@ -1,0 +1,26 @@
+experiment:
+  name: coral_target_calibration
+  task: coral_target_calibration
+directions:
+  - matr_to_hust
+  - hust_to_matr
+seeds:
+  - 42
+  - 123
+  - 456
+  - 789
+  - 1011
+n_cycles: 100
+k_target: 20
+n_repeats: 20
+training:
+  epochs: 800
+  lr: 0.001
+  weight_decay: 0.001
+  lambda_coral: 1.0
+  hidden_dim: 32
+  latent_dim: 8
+  dropout: 0.1
+outputs:
+  dir: outputs/results_v2_coral_target_calibration
+

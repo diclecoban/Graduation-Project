@@ -105,6 +105,34 @@ def main() -> int:
             with out.open("w") as f:
                 json.dump(split, f, indent=2)
             print(f"  -> {out.relative_to(PROJECT_ROOT)}")
+
+    manifest = SPLITS_DIR / "manifest.yaml"
+    datasets = sorted(df["dataset"].unique())
+    lines = [
+        "protocol: sop_v2",
+        "split_type: cell_level",
+        "ratios:",
+        f"  train: {RATIOS[0]:.2f}",
+        f"  calibration: {RATIOS[1]:.2f}",
+        f"  test: {RATIOS[2]:.2f}",
+        "stratification: cycle_life_quartiles",
+        "censored_excluded: true",
+        "seeds:",
+        *[f"  - {seed}" for seed in SEEDS],
+        "datasets:",
+        *[f"  - {dataset}" for dataset in datasets],
+        "pivot_n_cycles: 100",
+        "created_by: 2_models/generate_splits.py",
+        "files:",
+        *[
+            f"  - {dataset}_{seed}.json"
+            for dataset in datasets
+            for seed in SEEDS
+        ],
+        "",
+    ]
+    manifest.write_text("\n".join(lines))
+    print(f"  -> {manifest.relative_to(PROJECT_ROOT)}")
     return 0
 
 

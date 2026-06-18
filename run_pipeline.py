@@ -68,8 +68,19 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 HUST_DIR = RAW_DIR / "HUST_data"
 INTERMEDIATE_DIR = PROJECT_ROOT / "data" / "intermediate"
+SRC_DIR = PROJECT_ROOT / "src"
+if SRC_DIR.exists():
+    sys.path.insert(0, str(SRC_DIR))
+
+from battery_life.mlops import (  # noqa: E402
+    create_run_dir,
+    write_json,
+    write_pipeline_config,
+    write_stage_metadata,
+)
 
 PYTHON = sys.executable
+CURRENT_STAGE_COMMANDS: list[list[str]] = []
 
 
 @dataclass
@@ -81,6 +92,7 @@ class Stage:
 
 
 def _run(cmd: list[str], cwd: Path = PROJECT_ROOT) -> int:
+    CURRENT_STAGE_COMMANDS.append([str(c) for c in cmd])
     print(f"\n$ {' '.join(str(c) for c in cmd)}")
     return subprocess.run(cmd, cwd=cwd).returncode
 
@@ -444,6 +456,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-download", action="store_true", help="Skip the download stage.")
     parser.add_argument("--resume", action="store_true", help="Skip stages whose outputs exist.")
     parser.add_argument("--status", action="store_true", help="Print which outputs exist; exit.")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional label for the local metadata folder under outputs/runs/.",
+    )
     return parser.parse_args()
 
 
@@ -461,6 +478,7 @@ def print_status() -> None:
 
 
 def main() -> int:
+    global CURRENT_STAGE_COMMANDS
     args = parse_args()
     if args.status:
         print_status()
@@ -471,24 +489,83 @@ def main() -> int:
         selected.remove("download")
 
     print(f"Pipeline plan: {' → '.join(selected)}")
+    run_label = args.run_name or args.phase or "_".join(selected[:3])
+    run_dir = create_run_dir(PROJECT_ROOT, run_label)
+    write_pipeline_config(
+        run_dir,
+        project_root=PROJECT_ROOT,
+        selected_stages=selected,
+        phase=args.phase,
+        resume=args.resume,
+        skip_download=args.skip_download,
+    )
+    print(f"[metadata] local run directory: {run_dir.relative_to(PROJECT_ROOT)}")
+
     overall = time.time()
     failures: list[str] = []
+    stage_summaries: list[dict] = []
 
     for name in selected:
         stage = STAGES[name]
         if args.resume and _outputs_exist(stage):
             print(f"\n[resume] skipping {name}: outputs already exist.")
+            write_stage_metadata(
+                run_dir,
+                project_root=PROJECT_ROOT,
+                stage_name=name,
+                description=stage.description,
+                command=[],
+                return_code=0,
+                elapsed_seconds=0.0,
+                outputs=list(stage.outputs),
+            )
+            stage_summaries.append({
+                "stage": name,
+                "status": "skipped_existing_outputs",
+                "return_code": 0,
+                "elapsed_seconds": 0.0,
+            })
             continue
         print(f"\n========== [{name}] {stage.description} ==========")
+        CURRENT_STAGE_COMMANDS = []
         t0 = time.time()
         rc = stage.run()
         elapsed = time.time() - t0
         status = "OK" if rc == 0 else f"FAIL (rc={rc})"
         print(f"\n[{name}] {status} in {elapsed:.1f}s")
+        write_stage_metadata(
+            run_dir,
+            project_root=PROJECT_ROOT,
+            stage_name=name,
+            description=stage.description,
+            command=[
+                " ".join(cmd)
+                for cmd in CURRENT_STAGE_COMMANDS
+            ],
+            return_code=rc,
+            elapsed_seconds=elapsed,
+            outputs=list(stage.outputs),
+        )
+        stage_summaries.append({
+            "stage": name,
+            "status": "success" if rc == 0 else "failed",
+            "return_code": rc,
+            "elapsed_seconds": elapsed,
+        })
         if rc != 0:
             failures.append(name)
 
     total = time.time() - overall
+    write_json(
+        run_dir / "run_metadata.json",
+        {
+            "selected_stages": selected,
+            "phase": args.phase,
+            "total_elapsed_seconds": total,
+            "failed_stages": failures,
+            "stages": stage_summaries,
+        },
+    )
     print(f"\n========== Pipeline finished in {total:.1f}s ==========")
     if failures:
         print(f"Failed stages: {', '.join(failures)}")

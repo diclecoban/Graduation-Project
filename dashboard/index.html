@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Battery Lifetime Transfer Lab</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Graduation Project Demo</p>
+      <h1>Battery Lifetime Transfer Lab</h1>
+    </div>
+    <div class="header-actions">
+      <span class="status"><i></i> SOPv2 results loaded</span>
+      <button id="tourButton" class="command">Start guided demo</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <nav class="sidebar" aria-label="Dashboard sections">
+      <button class="nav-item active" data-view="overview">Overview</button>
+      <button class="nav-item" data-view="transfer">Transfer Lab</button>
+      <button class="nav-item" data-view="uncertainty">Uncertainty</button>
+      <button class="nav-item" data-view="features">Feature Explorer</button>
+      <button class="nav-item" data-view="pipeline">Pipeline</button>
+      <div class="sidebar-note">
+        <strong>Core finding</strong>
+        <span>Within-domain signal does not guarantee cross-domain reliability.</span>
+      </div>
+    </nav>
+
+    <main>
+      <div id="tourNote" class="tour-note" hidden></div>
+
+      <section id="overview" class="view active">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Research snapshot</p>
+            <h2>Early-cycle prediction under dataset shift</h2>
+          </div>
+          <span class="section-tag">MATR + HUST</span>
+        </div>
+        <div id="overviewMetrics" class="metric-grid"></div>
+        <div class="two-column">
+          <article class="panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">Evidence chain</p><h3>What the experiments establish</h3></div>
+            </div>
+            <div class="evidence-flow">
+              <div><b>1</b><strong>Within-dataset</strong><span>Predictive signal exists</span></div>
+              <div><b>2</b><strong>Raw transfer</strong><span>Strongly negative R²</span></div>
+              <div><b>3</b><strong>CORAL control</strong><span>Covariate alignment is insufficient</span></div>
+              <div><b>4</b><strong>Target calibration</strong><span>Reliability substantially improves</span></div>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">Dataset audit</p><h3>Same chemistry, different domains</h3></div>
+            </div>
+            <div id="datasetComparison" class="dataset-comparison"></div>
+          </article>
+        </div>
+        <article class="finding">
+          <span>Primary interpretation</span>
+          <strong>The same early-cycle features do not preserve the same relationship with lifetime across MATR and HUST.</strong>
+          <p>This is why the final explanation is concept or conditional shift, rather than a feature-count or model-selection problem.</p>
+        </article>
+      </section>
+
+      <section id="transfer" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Point prediction</p><h2>Cross-dataset Transfer Lab</h2></div>
+          <div class="segmented" data-control="direction">
+            <button class="active" data-value="HUST -> MATR">HUST → MATR</button>
+            <button data-value="MATR -> HUST">MATR → HUST</button>
+          </div>
+        </div>
+        <div id="transferMetrics" class="metric-grid"></div>
+        <div class="two-column chart-layout">
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Comparison</p><h3>R² by transfer method</h3></div><span>Higher is better</span></div>
+            <div id="r2Chart" class="bar-chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Operational error</p><h3>MAE by transfer method</h3></div><span>Cycles</span></div>
+            <div id="maeChart" class="bar-chart"></div>
+          </article>
+        </div>
+        <article id="transferInterpretation" class="finding"></article>
+      </section>
+
+      <section id="uncertainty" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Prediction intervals</p><h2>Conformal Prediction Under Shift</h2></div>
+          <div class="segmented" data-control="cpDirection">
+            <button class="active" data-value="HUST -> MATR">HUST → MATR</button>
+            <button data-value="MATR -> HUST">MATR → HUST</button>
+          </div>
+        </div>
+        <div id="cpMetrics" class="metric-grid"></div>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">90% nominal coverage</p><h3>Empirical coverage and interval width</h3></div><span class="nominal-key">Nominal target: 90%</span></div>
+          <div id="coverageChart" class="coverage-chart"></div>
+        </article>
+        <article id="iwFinding" class="finding"></article>
+      </section>
+
+      <section id="features" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Conditional shift</p><h2>Feature–Lifetime Relationship Explorer</h2></div>
+          <label class="select-control">Feature<select id="featureSelect"></select></label>
+        </div>
+        <div class="metric-grid" id="featureMetrics"></div>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">100-cycle cells</p><h3 id="featureChartTitle">Feature relationship</h3></div><div class="legend"><span class="matr-dot">MATR</span><span class="hust-dot">HUST</span></div></div>
+          <div id="scatterChart" class="scatter-chart"></div>
+        </article>
+        <article class="finding"><span>How to read this view</span><strong>Dataset separation alone shows covariate shift; changed feature–lifetime trends support conditional shift.</strong><p>The final analysis finds 16 of 34 slopes shifted after bootstrap testing and false-discovery-rate correction.</p></article>
+      </section>
+
+      <section id="pipeline" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Reproducibility</p><h2>Two-Phase Experimental Pipeline</h2></div>
+          <span class="section-tag">5 seeds · cell-level splits</span>
+        </div>
+        <div class="phase-band">
+          <div><b>Phase A</b><strong>Colab / Drive extraction</strong><span>Raw files → audited, compact feature tables</span></div>
+          <div class="phase-arrow">→</div>
+          <div><b>Phase B</b><strong>Local modeling and analysis</strong><span>Splits → models → shift → calibration → CP</span></div>
+        </div>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Current repository</p><h3>Analysis stages</h3></div><span>Outputs verified</span></div>
+          <div id="pipelineList" class="pipeline-list"></div>
+        </article>
+        <article class="finding"><span>Demo close</span><strong>Reliable deployment requires target-domain evidence.</strong><p>Top-k selection creates compact within-domain models, but target calibration and target-adapted conformal prediction are the effective controls under concept shift.</p></article>
+      </section>
+    </main>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

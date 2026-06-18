@@ -12,6 +12,10 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
+# Local presentation / binary export files
+*.pptx
+*.pdf
+
 # Python venvs
 venv/
 .venv/
@@ -24,12 +28,23 @@ catboost_info/
 /tmp/
 *.log
 _teacher_repo/
+outputs/runs/
 
 # Local plotting/cache artifacts
 .mplconfig/
 
 # Generated advisor/email helper outputs
 outputs/advisor_tables/*.html
+
+# Local-only report, poster, presentation and table generation helper scripts
+3_analysis/make_advisor_comparison_tables.py
+3_analysis/make_advisor_result_tables.py
+3_analysis/make_markdown_result_tables.py
+3_analysis/generate_presentation_assets.py
+3_analysis/generate_presentation_diagrams.py
+3_analysis/generate_project_timeline_slide.py
+dashboard/generate_dashboard_data.py
+scripts/create_filled_poster.py
 
 # Detailed regenerated experiment outputs (summary CSV/JSON/figures are kept selectively)
 outputs/**/results_detailed.csv
@@ -40,3 +55,9 @@ outputs/results_v2_topk_shap/k*_cross/
 
 # Local archives of superseded ablations
 outputs/archive/
+outputs/poster/
+outputs/presentation_assets/
+legacy/
+
+# Local thesis/report/presentation drafts
+docs/

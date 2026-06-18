@@ -1,0 +1,36 @@
+experiment:
+  name: conformal_prediction
+  task: conformal_prediction
+datasets:
+  - matr
+  - hust
+models:
+  - catboost
+  - random_forest
+seeds:
+  - 42
+  - 123
+  - 456
+  - 789
+  - 1011
+n_cycles:
+  - 100
+confidence_levels:
+  - 0.90
+  - 0.95
+target_k_values:
+  - 5
+  - 10
+  - 15
+  - 20
+adapter_k_values:
+  - 5
+  - 10
+  - 15
+  - 20
+adapter_types:
+  - residual_mean
+target_repeats: 20
+outputs:
+  dir: outputs/results_v2_conformal
+
